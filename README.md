@@ -13,6 +13,7 @@ These components will communicate through [MQTT Protocol](https://mqtt.org/) via
 ESP32
 - main microcontroller for the energy measurement node.
 - functions as a client in the MQTT network that publishes telemetry data to the MQTT Broker (Raspberry Pi).
+- controls relay for remote switching of plugged in appliances.
 
 Raspberry Pi
 - hosts the MQTT Broker/Server.

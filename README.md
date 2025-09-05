@@ -1,5 +1,4 @@
 # iot-smart-meter
-this is our thesis project in computer engineering :3
 
 ## Description
 This project consists of three main components:

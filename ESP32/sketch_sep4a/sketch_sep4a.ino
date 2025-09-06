@@ -3,7 +3,8 @@
 #include <PubSubClient.h>
 #include <Preferences.h>
 
-#define RESET_PIN 0   // BOOT button
+#define RESET_PIN 0       // BOOT button
+#define RECONNECT_PIN 4   // GPIO4 pin
 
 WiFiManager wm;
 WiFiClient espClient;
@@ -52,28 +53,31 @@ void setupWifi() {
   Serial.print("IP Address: "); Serial.println(WiFi.localIP());
   Serial.print("MQTT Server: "); Serial.println(mqtt_server);
   Serial.print("MQTT Port: "); Serial.println(mqtt_port);
+
+  connectMQTT();
 }
 
-// void reconnectMQTT() {
-//   static unsigned long lastAttempt = 0;
-//   if (!client.connected() && millis() - lastAttempt > 5000) { // retry every 5s
-//     lastAttempt = millis();
+void connectMQTT() {
+  if (!client.connected()) {
+    Serial.print("Connecting to MQTT...");
+    if (client.connect("ESP32Client")) {
+      Serial.println("connected");
+      client.publish("test/topic", "Hello from ESP32!");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.println(client.state());
+      Serial.println("Please check if server is running and try again.");
+    }
+    return;
+  }
 
-//     Serial.print("Connecting to MQTT...");
-//     if (client.connect("ESP32Client")) {
-//       Serial.println("connected");
-//       client.publish("test/topic", "Hello from ESP32!");
-//     } else {
-//       Serial.print("failed, rc=");
-//       Serial.print(client.state());
-//       Serial.println(" retying in 5s");
-//     }
-//   }
-// }
+  Serial.println("Already connected to server... Nothing to do");
+}
 
 void setup() {
   Serial.begin(115200);
   pinMode(RESET_PIN, INPUT_PULLUP);
+  pinMode(RECONNECT_PIN, INPUT_PULLUP);
 
   loadConfig();       // Load previously saved settings
   setupWifi();        // Start WiFi + captive portal if needed
@@ -82,12 +86,15 @@ void setup() {
 }
 
 void loop() {
-  
   if (digitalRead(RESET_PIN) == LOW) {
     Serial.println("Resetting WiFi and restarting...");
     wm.resetSettings();
     delay(1000);
     ESP.restart();
+  }
+
+  if (digitalRead(RECONNECT_PIN) == LOW) {
+    connectMQTT();
   }
 
   if (client.connected()) {

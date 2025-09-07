@@ -25,4 +25,17 @@ Android application
 - has a control panel to set the various settings for the system's behaviour.
 
 ## Features
-TO-DO
+(TO-DO)
+
+## Checklist
+- ESP32
+  - [x] WiFi and MQTT Broker reconnection
+  - [ ] Read and format energy readings from PZEM-004T
+  - [ ] Publish energy reading payloads to broker
+  - [ ] Subscibe to commands topic on MQTT
+  - [ ] Parse and execute received commands from broker
+
+- Raspberry Pi
+  - [ ] Configure MQTT Broker ([Mosquitto](https://github.com/eclipse-mosquitto/mosquitto))
+  - [ ] Parse ESP32 payloads
+  - [ ] ...

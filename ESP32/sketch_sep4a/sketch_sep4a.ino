@@ -19,6 +19,17 @@ unsigned long lastMDNSRetry = 0;
 const unsigned long MDNS_RETRY_INTERVAL = 5000;
 bool mdnsResolved = false;
 
+void mqttCallback(char* topic, byte* message, unsigned int length) {
+  Serial.print("Message arrived on topic: ");
+  Serial.print(topic);
+  Serial.print(" | Message: ");
+
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)message[i]);
+  }
+  Serial.println();
+}
+
 void saveConfig() {
   preferences.begin("mqtt", false);
   preferences.putString("server", mqtt_server);
@@ -81,7 +92,6 @@ void setupmDNS() {
 
     IPAddress brokerIP = MDNS.queryHost(serverHostname);
     if (brokerIP != INADDR_NONE) {
-    // if (brokerIP.toString() != "0.0.0.0") {    // <-- less efficient
       Serial.print("Resolved broker IP: ");
       Serial.println(brokerIP);
       client.setServer(brokerIP, atoi(mqtt_port));
@@ -109,6 +119,9 @@ void connectMQTT() {
   if (client.connect(clientId.c_str())) {
     Serial.println("connected");
     client.publish("test/topic", "Hello from ESP32!");
+
+    client.subscribe("mnode/commands");
+    Serial.println("Subscribed to mnode/commands");
   } else {
     Serial.print("failed, rc=");
     Serial.println(client.state());
@@ -126,6 +139,9 @@ void setup() {
 
   loadConfig();       // Load previously saved settings
   setupWifi();        // Start WiFi + captive portal if needed
+
+  client.setCallback(mqttCallback);
+
   setupmDNS();        // Resolve mDNS
 }
 

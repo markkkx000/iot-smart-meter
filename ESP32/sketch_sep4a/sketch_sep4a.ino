@@ -1,10 +1,10 @@
 #include <WiFi.h>
 #include <WiFiManager.h>
+#include <ESPmDNS.h>
 #include <PubSubClient.h>
 #include <Preferences.h>
 
 #define RESET_PIN 0       // BOOT button
-#define RECONNECT_PIN 4   // GPIO4 pin
 
 WiFiManager wm;
 WiFiClient espClient;
@@ -12,8 +12,12 @@ PubSubClient client(espClient);
 
 Preferences preferences;
 
-char mqtt_server[40] = "raspberrypi.local";
+char mqtt_server[40] = "mqttpi.local";
 char mqtt_port[6]   = "1883";
+
+unsigned long lastMDNSRetry = 0;
+const unsigned long MDNS_RETRY_INTERVAL = 5000;
+bool mdnsResolved = false;
 
 void saveConfig() {
   preferences.begin("mqtt", false);
@@ -24,7 +28,7 @@ void saveConfig() {
 
 void loadConfig() {
   preferences.begin("mqtt", true);
-  String server = preferences.getString("server", "raspberrypi.local");
+  String server = preferences.getString("server", "mqttpi.local");
   String port   = preferences.getString("port", "1883");
   preferences.end();
 
@@ -53,36 +57,76 @@ void setupWifi() {
   Serial.print("IP Address: "); Serial.println(WiFi.localIP());
   Serial.print("MQTT Server: "); Serial.println(mqtt_server);
   Serial.print("MQTT Port: "); Serial.println(mqtt_port);
+}
 
-  connectMQTT();
+String getUID() {
+  return String((uint32_t)ESP.getEfuseMac(), HEX);
+}
+
+void setupmDNS() {
+  String hostname = "esp32node-" + getUID();
+  if (!MDNS.begin(hostname.c_str())) {
+      Serial.println("Error setting up mDNS responder");
+  } else {
+      Serial.print("mDNS responder started: ");
+      Serial.println(hostname + ".local");
+  }
+
+  if (String(mqtt_server).endsWith(".local")) {
+    Serial.print("Resolving mDNS for ");
+    Serial.println(mqtt_server);
+
+    String serverHostname = mqtt_server;
+    serverHostname.replace(".local", "");
+
+    IPAddress brokerIP = MDNS.queryHost(serverHostname);
+    if (brokerIP != INADDR_NONE) {
+    // if (brokerIP.toString() != "0.0.0.0") {    // <-- less efficient
+      Serial.print("Resolved broker IP: ");
+      Serial.println(brokerIP);
+      client.setServer(brokerIP, atoi(mqtt_port));
+      mdnsResolved = true;
+      connectMQTT();
+    } else {
+      Serial.println("mDNS resolution failed, will retry later...");
+      mdnsResolved = false;
+    }
+  } else {
+    Serial.println("WARNING: using bare IP address of server, consider using mDNS to resolve dynamic IP address.");
+    client.setServer(mqtt_server, atoi(mqtt_port));
+    mdnsResolved = true;
+  }
 }
 
 void connectMQTT() {
-  if (!client.connected()) {
-    Serial.print("Connecting to MQTT...");
-    if (client.connect("ESP32Client")) {
-      Serial.println("connected");
-      client.publish("test/topic", "Hello from ESP32!");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.println(client.state());
-      Serial.println("Please check if server is running and try again.");
-    }
+  if (client.connected()) {
+    Serial.println("Already connected to server... Nothing to do");
     return;
   }
+  
+  String clientId = "ESP32Client-" + getUID();
+  Serial.print("Connecting to MQTT...");
+  if (client.connect(clientId.c_str())) {
+    Serial.println("connected");
+    client.publish("test/topic", "Hello from ESP32!");
+  } else {
+    Serial.print("failed, rc=");
+    Serial.println(client.state());
 
-  Serial.println("Already connected to server... Nothing to do");
+    // Retry mDNS if resolution was missing
+    if (String(mqtt_server).endsWith(".local")) {
+      setupmDNS();
+    }
+  }
 }
 
 void setup() {
   Serial.begin(115200);
   pinMode(RESET_PIN, INPUT_PULLUP);
-  pinMode(RECONNECT_PIN, INPUT_PULLUP);
 
   loadConfig();       // Load previously saved settings
   setupWifi();        // Start WiFi + captive portal if needed
-
-  client.setServer(mqtt_server, atoi(mqtt_port));
+  setupmDNS();        // Resolve mDNS
 }
 
 void loop() {
@@ -93,8 +137,17 @@ void loop() {
     ESP.restart();
   }
 
-  if (digitalRead(RECONNECT_PIN) == LOW) {
+  static unsigned long lastReconnect = 0;
+  if (!client.connected() && millis() - lastReconnect > 5000) {
+    lastReconnect = millis();
     connectMQTT();
+  }
+
+  if (!mdnsResolved && String(mqtt_server).endsWith(".local")) {
+    if (millis() - lastMDNSRetry > MDNS_RETRY_INTERVAL) {
+      lastMDNSRetry = millis();
+      setupmDNS();
+    }
   }
 
   if (client.connected()) {

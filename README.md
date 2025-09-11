@@ -30,14 +30,15 @@ Android application
 ## Checklist
 - ESP32
   - [x] WiFi and MQTT Broker reconnection
-  - [ ] Test MQTT
+  - [x] Test MQTT
   - [ ] Read and format energy readings from PZEM-004T
   - [ ] Publish energy reading payloads to broker
-  - [ ] Subscibe to commands topic on MQTT
+  - [x] Subscibe to commands topic on MQTT
   - [ ] Parse and execute received commands from broker
+  - [ ] Add status indicators (on the OLED display)
 
 - Raspberry Pi
   - [x] Configure MQTT Broker ([Mosquitto](https://github.com/eclipse-mosquitto/mosquitto))
   - [ ] Add an easy way to connect the Pi to LAN
-  - [ ] Parse ESP32 payloads
+  - [ ] Parse energy reading payloads
   - [ ] ...

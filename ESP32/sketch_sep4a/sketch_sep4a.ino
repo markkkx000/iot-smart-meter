@@ -169,4 +169,8 @@ void loop() {
   if (client.connected()) {
     client.loop();
   }
+
+  // add relay switching logic here //
+
+  /*---TO-DO: publish energy readings from PZEM-004T to broker---*/
 }

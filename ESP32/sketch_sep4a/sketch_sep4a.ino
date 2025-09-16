@@ -118,7 +118,7 @@ void connectMQTT() {
   Serial.print("Connecting to MQTT...");
   if (client.connect(clientId.c_str())) {
     Serial.println("connected");
-    client.publish("test/topic", "Hello from ESP32!");
+    client.publish("mnode/status", "Online");
 
     client.subscribe("mnode/commands");
     Serial.println("Subscribed to mnode/commands");
@@ -171,6 +171,5 @@ void loop() {
   }
 
   // add relay switching logic here //
-
   /*---TO-DO: publish energy readings from PZEM-004T to broker---*/
 }

@@ -1,0 +1,14 @@
+[Unit]
+Description=Captive Portal Flask App
+After=network.target
+
+[Service]
+WorkingDirectory=/home/sabado/captive_portal
+ExecStart=/usr/bin/python3 captive_portal.py
+Restart=always
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=captive-portal
+
+[Install]
+WantedBy=multi-user.target

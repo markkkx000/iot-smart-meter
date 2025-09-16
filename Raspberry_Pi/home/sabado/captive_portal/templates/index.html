@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Raspberry Pi WiFi Config</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>📶 Raspberry Pi WiFi Config</h1>
+
+        <section class="add">
+            <h2>Add Network</h2>
+            <form method="POST">
+                <input type="text" name="ssid" placeholder="SSID" required>
+                <input type="password" name="password" placeholder="Password" required>
+                <button type="submit" name="add">➕ Add</button>
+            </form>
+        </section>
+
+        <section class="saved">
+            <h2>Saved Networks</h2>
+            {% if networks %}
+                <ul>
+                    {% for net in networks %}
+                        <li>
+                            {{ net }}
+                            <button type="submit" form="remove-{{ net }}" class="remove">❌ Remove</button>
+                            <form id="remove-{{ net }}" method="POST" style="display:none;">
+                                <input type="hidden" name="remove" value="{{ net }}">
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No saved networks.</p>
+            {% endif %}
+        </section>
+    </div>
+</body>
+</html>
+

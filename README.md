@@ -39,6 +39,6 @@ Android application
 
 - Raspberry Pi
   - [x] Configure MQTT Broker ([Mosquitto](https://github.com/eclipse-mosquitto/mosquitto))
-  - [x] Add an easy way to connect the Pi to LAN
+  - [x] Add an easy way to connect the Pi to WiFi
   - [ ] Parse energy reading payloads
   - [ ] ...

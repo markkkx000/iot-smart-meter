@@ -39,8 +39,8 @@ done
 
 echo "[wifi-fallback] No network detected, enabling Access Point mode..."
 
-# Stop DHCP client for this interface
-dhcpcd -x $WIFI_INTERFACE || true
+# Disconnect wlan0 from NetworkManager
+nmcli device disconnect $WIFI_INTERFACE || true
 
 # Flush and configure static IP
 ip addr flush dev $WIFI_INTERFACE

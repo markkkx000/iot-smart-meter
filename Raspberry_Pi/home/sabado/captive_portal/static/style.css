@@ -34,6 +34,9 @@ form input {
 }
 
 form button {
+    display: block;
+    width: 25%;
+    margin: 10px auto;
     padding: 10px 20px;
     border: none;
     border-radius: 6px;

@@ -19,7 +19,8 @@ def list_networks():
 
 def add_network(ssid, password):
     """Add/connect WiFi via NetworkManager"""
-    subprocess.run(["sudo","nmcli", "dev", "wifi", "connect", ssid, "password", password])
+    subprocess.run(["sudo", "nmcli", "dev", "wifi", "rescan"])
+    subprocess.run(["sudo", "nmcli", "dev", "wifi", "connect", ssid, "password", password])
 
 def remove_network(ssid):
     """Remove saved WiFi connection"""

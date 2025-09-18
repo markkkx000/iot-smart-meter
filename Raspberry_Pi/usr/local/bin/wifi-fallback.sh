@@ -8,7 +8,9 @@ echo "[$(date)] Starting WiFi fallback script..."
 WIFI_INTERFACE="wlan0"
 ETH_INTERFACE="eth0"
 CHECK_TIMEOUT=30
-CAPTIVE_PORTAL_DIR="/home/sabado/captive_portal"
+HOTSPOT_NAME="Hotspot"
+HOTSPOT_SSID="Pi_AP"
+HOTSPOT_PASS="12345678"
 
 has_ip() {
     ip addr show "$1" | grep -q "inet "
@@ -39,17 +41,14 @@ done
 
 echo "[wifi-fallback] No network detected, enabling Access Point mode..."
 
-# Disconnect wlan0 from NetworkManager
-nmcli device disconnect $WIFI_INTERFACE || true
+# Create hotspot
+nmcli dev wifi hotspot ifname "$WIFI_INTERFACE" ssid "$HOTSPOT_SSID" password "$HOTSPOT_PASS" || true
 
-# Flush and configure static IP
-ip addr flush dev $WIFI_INTERFACE
-ip addr add 192.168.4.1/24 dev $WIFI_INTERFACE
-ip link set $WIFI_INTERFACE up
-
-# Start AP services
-systemctl restart hostapd
-systemctl restart dnsmasq
+nmcli connection modify "$HOTSPOT_NAME" connection.autoconnect no
+nmcli connection modify "$HOTSPOT_NAME" ipv4.addresses 192.168.4.1/24
+nmcli connection modify "$HOTSPOT_NAME" ipv4.method shared
+nmcli connection down "$HOTSPOT_NAME" || true
+nmcli connection up "$HOTSPOT_NAME"
 
 # Launch captive portal
 systemctl restart captive-portal

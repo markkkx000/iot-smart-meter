@@ -13,7 +13,7 @@ def list_networks():
     networks = []
     for line in result.stdout.strip().splitlines():
         name, ctype = line.split(":")
-        if ctype == "802-11-wireless":  # only Wi-Fi
+        if ctype == "802-11-wireless" and name != "Hotspot":
             networks.append(name)
     return networks
 

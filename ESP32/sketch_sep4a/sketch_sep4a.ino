@@ -116,12 +116,24 @@ void connectMQTT() {
   
   String clientId = "ESP32Client-" + getUID();
   Serial.print("Connecting to MQTT...");
+
   if (client.connect(clientId.c_str())) {
     Serial.println("connected");
-    client.publish("mnode/status", "Online");
 
-    client.subscribe("mnode/commands");
-    Serial.println("Subscribed to mnode/commands");
+    String devStatusTopic = "dev/all/status";
+    String commandsTopic = "dev/" + clientId + "/commands";
+
+    String statusMessage = clientId + ": Online";
+
+    client.publish(devStatusTopic.c_str(), statusMessage.c_str(), true);
+    Serial.print("Published Message: \"");
+    Serial.print(clientId);
+    Serial.print("\" to ");
+    Serial.println(devStatusTopic);
+
+    client.subscribe(commandsTopic.c_str());
+    Serial.print("Subscribed to: ");
+    Serial.println(commandsTopic);
   } else {
     Serial.print("failed, rc=");
     Serial.println(client.state());

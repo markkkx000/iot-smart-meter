@@ -5,6 +5,7 @@
 #include <Preferences.h>
 
 #define RESET_PIN 0       // BOOT button
+#define RELAY_PIN 4
 
 WiFiManager wm;
 WiFiClient espClient;
@@ -19,15 +20,34 @@ unsigned long lastMDNSRetry = 0;
 const unsigned long MDNS_RETRY_INTERVAL = 5000;
 bool mdnsResolved = false;
 
+String getUID() {
+  return String((uint32_t)ESP.getEfuseMac(), HEX);
+}
+
+String clientId = "ESP32-" + getUID();
+
 void mqttCallback(char* topic, byte* message, unsigned int length) {
   Serial.print("Message arrived on topic: ");
   Serial.print(topic);
   Serial.print(" | Message: ");
 
+  String msg;
   for (int i = 0; i < length; i++) {
-    Serial.print((char)message[i]);
+    msg += (char)message[i];
   }
-  Serial.println();
+  Serial.println(msg);
+
+  String relayStatusTopic = "dev/" + clientId + "/relay/status";
+
+  if (msg.equalsIgnoreCase("RELAY_ON")) {
+    digitalWrite(RELAY_PIN, LOW);             // for active-LOW relay modules
+    client.publish(relayStatusTopic.c_str(), "1", true);
+    Serial.println("Relay switched ON");
+  } else if (msg.equalsIgnoreCase("RELAY_OFF")) {
+    digitalWrite(RELAY_PIN, HIGH);
+    client.publish(relayStatusTopic.c_str(), "0", true);
+    Serial.println("Relay switched OFF");
+  }
 }
 
 void saveConfig() {
@@ -70,10 +90,6 @@ void setupWifi() {
   Serial.print("MQTT Port: "); Serial.println(mqtt_port);
 }
 
-String getUID() {
-  return String((uint32_t)ESP.getEfuseMac(), HEX);
-}
-
 void setupmDNS() {
   String hostname = "esp32node-" + getUID();
   if (!MDNS.begin(hostname.c_str())) {
@@ -114,20 +130,19 @@ void connectMQTT() {
     return;
   }
   
-  String clientId = "ESP32Client-" + getUID();
   Serial.print("Connecting to MQTT...");
 
   if (client.connect(clientId.c_str())) {
     Serial.println("connected");
 
     String devStatusTopic = "dev/all/status";
-    String commandsTopic = "dev/" + clientId + "/commands";
+    String commandsTopic = "dev/" + clientId + "/relay/commands";
 
     String statusMessage = clientId + ": Online";
 
     client.publish(devStatusTopic.c_str(), statusMessage.c_str(), true);
     Serial.print("Published Message: \"");
-    Serial.print(clientId);
+    Serial.print(statusMessage);
     Serial.print("\" to ");
     Serial.println(devStatusTopic);
 
@@ -148,6 +163,8 @@ void connectMQTT() {
 void setup() {
   Serial.begin(115200);
   pinMode(RESET_PIN, INPUT_PULLUP);
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, HIGH);
 
   loadConfig();       // Load previously saved settings
   setupWifi();        // Start WiFi + captive portal if needed

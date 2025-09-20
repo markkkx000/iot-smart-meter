@@ -43,4 +43,4 @@ Android application
   - [x] Add an easy way to connect the Pi to WiFi (captive portal)
   - [ ] Parse energy reading payloads
   - [ ] Add callbacks for ESP32 status and messages
-  - [ ] ...
+  - [ ] Handle sudden power off

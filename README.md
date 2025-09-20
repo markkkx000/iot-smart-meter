@@ -34,11 +34,13 @@ Android application
   - [ ] Read and format energy readings from PZEM-004T
   - [ ] Publish energy reading payloads to broker
   - [x] Subscibe to commands topic on MQTT
-  - [ ] Parse and execute received commands from broker
+  - [x] Parse and execute received commands from broker
+  - [x] Add esp32 status topics (heartbeat)
   - [ ] Add status indicators (on the OLED display)
 
 - Raspberry Pi
   - [x] Configure MQTT Broker ([Mosquitto](https://github.com/eclipse-mosquitto/mosquitto))
-  - [x] Add an easy way to connect the Pi to WiFi
+  - [x] Add an easy way to connect the Pi to WiFi (captive portal)
   - [ ] Parse energy reading payloads
+  - [ ] Add callbacks for ESP32 status and messages
   - [ ] ...

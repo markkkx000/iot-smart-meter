@@ -1,0 +1,11 @@
+# WiFi Hotspot config
+HOTSPOT_NAME="Hotspot"
+HOTSPOT_SSID="Pi_AP"
+HOTSPOT_PASS="12345678"
+
+# Network interfaces
+WIFI_INTERFACE="wlan0"
+ETH_INTERFACE="eth0"
+
+# Fallback timeout in seconds
+CHECK_TIMEOUT=15

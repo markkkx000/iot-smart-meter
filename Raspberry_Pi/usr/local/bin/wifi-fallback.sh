@@ -5,12 +5,9 @@ set -e
 exec >>/var/log/wifi-fallback.log 2>&1
 echo "[$(date)] Starting WiFi fallback script..."
 
-WIFI_INTERFACE="wlan0"
-ETH_INTERFACE="eth0"
-CHECK_TIMEOUT=30
-HOTSPOT_NAME="Hotspot"
-HOTSPOT_SSID="Pi_AP"
-HOTSPOT_PASS="12345678"
+if [ -f /etc/default/wifi-fallback ]; then
+    source /etc/default/wifi-fallback
+fi
 
 has_ip() {
     ip addr show "$1" | grep -q "inet "

@@ -2,10 +2,11 @@
 from flask import Flask, render_template, request, redirect, url_for
 import subprocess
 import logging
+import os
+import time
 
 app = Flask(__name__)
 
-# simple logging to stderr/journal
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("captive-portal")
 
@@ -20,7 +21,6 @@ def list_networks():
         if not line:
             continue
         parts = line.split(":")
-        # defensive in case NAME contains ":" (rare)
         if len(parts) >= 2:
             name = ":".join(parts[:-1])
             ctype = parts[-1]
@@ -34,7 +34,23 @@ def add_network(ssid, password):
     """Add/connect WiFi via NetworkManager"""
     log.info("Adding network: %s", ssid)
     subprocess.run(["sudo", "nmcli", "dev", "wifi", "rescan"])
-    subprocess.run(["sudo", "nmcli", "dev", "wifi", "connect", ssid, "password", password])
+    result = subprocess.run(
+        ["sudo", "nmcli", "dev", "wifi", "connect", ssid, "password", password],
+        capture_output=True, text=True
+    )
+
+    if result.returncode == 0:
+        check = subprocess.run(
+            ["nmcli", "-t", "-f", "DEVICE,STATE", "dev"],
+            capture_output=True, text=True
+        )
+        if "wlan0:connected" in check.stdout:
+            log.info("Connection successful, rebooting")
+            subprocess.Popen(["sudo", "shutdown", "-r", "now"])
+            time.sleep(2)
+            os._exit(0)
+        else:
+            log.warning("nmcli reported success but not connected yet")
 
 def remove_network(ssid):
     """Remove saved WiFi connection"""
@@ -59,40 +75,33 @@ def index():
     return render_template("index.html", networks=networks)
 
 # --- captive portal probe handling for various OSes ---
-# Android probe
 @app.route("/generate_204")
 @app.route("/generate_204/")
 def android_probe():
-    # Android expects a redirect or non-204 to trigger captive portal
     log.info("Android probe hit, redirecting to portal")
     return redirect(url_for("index"), code=302)
 
-# Apple probe
 @app.route("/hotspot-detect.html")
 @app.route("/hotspot-detect.html/")
 def apple_probe():
     log.info("Apple probe hit, redirecting to portal")
     return redirect(url_for("index"), code=302)
 
-# Windows probe
 @app.route("/connecttest.txt")
 @app.route("/connecttest.txt/")
 def windows_probe():
     log.info("Windows probe hit, redirecting to portal")
     return redirect(url_for("index"), code=302)
 
-# catch-all for any other path that might be requested by clients
-# but avoid interfering with static files (like /static/...)
 @app.route("/<path:path>")
 def catch_all(path):
-    # allow static assets, favicon, or files with an extension to be served normally
-    if path.startswith("static/") or path == "favicon.ico" or "." in path:
-        # let Flask serve static assets as usual (Flask will handle /static/* automatically)
-        log.debug("Asset request: %s, letting Flask handle it", path)
-        # returning a 404 here will let Flask's static route try first, but Flask's static
-        # route usually takes precedence — this is just defensive.
-        return redirect(url_for("index"))
-    # otherwise redirect everything to portal
+    if path.startswith("static/"):
+        return "", 404
+    if path == "favicon.ico":
+        return "", 404
+    if "." in path:
+        return "", 404
+
     log.info("Catch-all hit for path=%s, redirecting to portal", path)
     return redirect(url_for("index"), code=302)
 

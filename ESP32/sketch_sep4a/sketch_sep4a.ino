@@ -5,7 +5,7 @@
 #include <Preferences.h>
 
 #define RESET_PIN 0       // BOOT button
-#define RELAY_PIN 4
+#define RELAY_PIN 26
 
 WiFiManager wm;
 WiFiClient espClient;

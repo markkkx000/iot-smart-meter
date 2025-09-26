@@ -14,7 +14,6 @@
 WiFiManager wm;
 WiFiClient espClient;
 PubSubClient client(espClient);
-Preferences preferences;
 PZEM004Tv30 pzem(Serial2, PZEM_RX, PZEM_TX);
 
 char mqtt_server[40] = "mqttpi.local";

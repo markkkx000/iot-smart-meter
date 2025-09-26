@@ -3,14 +3,19 @@
 #include <ESPmDNS.h>
 #include <PubSubClient.h>
 #include <Preferences.h>
+#include <PZEM004Tv30.h>
+#include <ArduinoJson.h>
 
 #define RESET_PIN 0       // BOOT button
 #define RELAY_PIN 26
+#define PZEM_RX 16
+#define PZEM_TX 17
 
 WiFiManager wm;
 WiFiClient espClient;
 PubSubClient client(espClient);
 Preferences preferences;
+PZEM004Tv30 pzem(Serial2, PZEM_RX, PZEM_TX);
 
 char mqtt_server[40] = "mqttpi.local";
 char mqtt_port[6]   = "1883";
@@ -19,21 +24,55 @@ unsigned long lastMDNSRetry = 0;
 const unsigned long MDNS_RETRY_INTERVAL = 5000;
 bool mdnsResolved = false;
 
-// Heartbeat timing
+// --- Heartbeat timing ---
 const unsigned long heartbeatInterval = 30000;
 unsigned long lastHeartbeat = 0;
 unsigned long lastReconnect = 0;
+
+// --- PZEM timing (defaults) ---
+unsigned long metricsInterval = 3000;   // 3 seconds
+unsigned long energyInterval  = 60000;  // 60 seconds
+unsigned long lastMetricsPublish = 0;
+unsigned long lastEnergyPublish  = 0;
+
+// ===================================================
+// ---------------- HELPERS --------------------------
+// ===================================================
 
 String getUID() {
   return String((uint32_t)ESP.getEfuseMac(), HEX);
 }
 
-// ============= TOPICS ============= //
+void saveIntervals() {
+  Preferences pref;
+  if (pref.begin("intervals", false)) {
+    pref.putULong("metrics", metricsInterval);
+    pref.putULong("energy", energyInterval);
+    pref.end();
+  }
+}
+
+void loadIntervals() {
+  Preferences pref;
+  if (pref.begin("intervals", true)) {
+    metricsInterval = pref.getULong("metrics", 3000);
+    energyInterval  = pref.getULong("energy", 60000);
+    pref.end();
+  }
+}
+
+// ===================================================
+// ---------------- TOPICS ---------------------------
+// ===================================================
+
 String clientId        = "ESP32-" + getUID();
 String relayStateTopic = "dev/" + clientId + "/relay/state";
 String devStatusTopic  = "dev/all/status";
 String commandsTopic   = "dev/" + clientId + "/relay/commands";
 String heartbeatTopic  = "dev/" + clientId + "/heartbeat";
+String configTopic     = "dev/" + clientId + "/pzem/config";
+String metricsTopic    = "dev/" + clientId + "/pzem/metrics";
+String energyTopic     = "dev/" + clientId + "/pzem/energy";
 
 // ===================================================
 // ---------------- HANDLERS -------------------------
@@ -64,6 +103,28 @@ void handleRelayState(const String& msg) {
   }
 }
 
+
+// ------ UNTESTED -------
+void handleConfig(const String& msg) {
+  // Example JSON: {"metrics":5000,"energy":120000}
+  StaticJsonDocument<128> doc;
+  DeserializationError error = deserializeJson(doc, msg);
+
+  if (!error) {
+    if (doc.containsKey("metrics")) {
+      metricsInterval = doc["metrics"];
+      Serial.printf("Updated metrics interval: %lu ms\n", metricsInterval);
+    }
+    if (doc.containsKey("energy")) {
+      energyInterval = doc["energy"];
+      Serial.printf("Updated energy interval: %lu ms\n", energyInterval);
+    }
+    saveIntervals();
+  } else {
+    Serial.println("⚠️ Failed to parse config JSON");
+  }
+}
+
 // ===================================================
 // ---------------- DISPATCHER -----------------------
 // ===================================================
@@ -81,30 +142,85 @@ void mqttCallback(char* topic, byte* message, unsigned int length) {
     handleRelayCommand(msg);
   } else if (t == relayStateTopic) {
     handleRelayState(msg);
+  } else if (t == configTopic) {
+    handleConfig(msg);
   } else {
     Serial.println("⚠️ No handler registered for this topic");
   }
 }
 
 // ===================================================
-// ----------------- CONFIG --------------------------
+// ---------------- PZEM PUBLISHERS ------------------
+// ===================================================
+
+void publishMetrics() {
+  if (!client.connected()) return;
+  unsigned long now = millis();
+  if (now - lastMetricsPublish < metricsInterval) return;
+  lastMetricsPublish = now;
+
+  float voltage = pzem.voltage();
+  float current = pzem.current();
+  float power   = pzem.power();
+
+  if (isnan(voltage) || isnan(current) || isnan(power)) {
+    Serial.println("⚠️ Metrics reading error, skipping...");
+    return;
+  }
+
+  StaticJsonDocument<128> doc;
+  doc["voltage"] = voltage;
+  doc["current"] = current;
+  doc["power"]   = power;
+
+  char buffer[128];
+  size_t n = serializeJson(doc, buffer);
+  client.publish(metricsTopic.c_str(), buffer, n);
+
+  Serial.printf("Published Metrics JSON to %s => %s\n", metricsTopic.c_str(), buffer);
+}
+
+void publishEnergy() {
+  if (!client.connected()) return;
+  unsigned long now = millis();
+  if (now - lastEnergyPublish < energyInterval) return;
+  lastEnergyPublish = now;
+
+  float energy = pzem.energy();
+  if (isnan(energy)) {
+    Serial.println("⚠️ Energy reading error, skipping...");
+    return;
+  }
+
+  char energyBuf[32];
+  dtostrf(energy, 1, 2, energyBuf);
+  client.publish(energyTopic.c_str(), energyBuf, true);
+
+  Serial.printf("Published Energy to %s => %s\n", energyTopic.c_str(), energyBuf);
+}
+
+// ===================================================
+// ---------------- CONFIG ---------------------------
 // ===================================================
 
 void saveConfig() {
-  preferences.begin("mqtt", false);
-  preferences.putString("server", mqtt_server);
-  preferences.putString("port", mqtt_port);
-  preferences.end();
+  Preferences pref;
+  if (pref.begin("mqtt", false)) {
+    pref.putString("server", mqtt_server);
+    pref.putString("port", mqtt_port);
+    pref.end();
+  }
 }
 
 void loadConfig() {
-  preferences.begin("mqtt", true);
-  String server = preferences.getString("server", "mqttpi.local");
-  String port   = preferences.getString("port", "1883");
-  preferences.end();
-
-  server.toCharArray(mqtt_server, sizeof(mqtt_server));
-  port.toCharArray(mqtt_port, sizeof(mqtt_port));
+  Preferences pref;
+  if (pref.begin("mqtt", true)) {
+    String server = pref.getString("server", "mqttpi.local");
+    String port   = pref.getString("port", "1883");
+    pref.end();
+    server.toCharArray(mqtt_server, sizeof(mqtt_server));
+    port.toCharArray(mqtt_port, sizeof(mqtt_port));
+  }
 }
 
 void setupWifi() {
@@ -129,6 +245,10 @@ void setupWifi() {
   Serial.print("MQTT Server: "); Serial.println(mqtt_server);
   Serial.print("MQTT Port: "); Serial.println(mqtt_port);
 }
+
+// ===================================================
+// ---------------- mDNS -----------------------------
+// ===================================================
 
 void setupmDNS() {
   String hostname = "esp32node-" + getUID();
@@ -158,14 +278,14 @@ void setupmDNS() {
       mdnsResolved = false;
     }
   } else {
-    Serial.println("WARNING: using bare IP address of server, consider using mDNS to resolve dynamic IP address.");
+    Serial.println("WARNING: using bare IP, consider mDNS for dynamic IPs");
     client.setServer(mqtt_server, atoi(mqtt_port));
     mdnsResolved = true;
   }
 }
 
 // ===================================================
-// ----------------- MQTT ----------------------------
+// ---------------- MQTT -----------------------------
 // ===================================================
 
 void connectMQTT() {
@@ -187,37 +307,26 @@ void connectMQTT() {
       )) 
   {
     Serial.println("connected");
-
     client.publish(devStatusTopic.c_str(), onlineMsg.c_str(), true);
     Serial.printf("Published Message: \"%s\" to %s\n", onlineMsg.c_str(), devStatusTopic.c_str());
 
     client.subscribe(commandsTopic.c_str());
-    Serial.print("Subscribed to: "); Serial.println(commandsTopic);
-
     client.subscribe(relayStateTopic.c_str());
-    Serial.print("Subscribed to: "); Serial.println(relayStateTopic);
+    client.subscribe(configTopic.c_str());
   } else {
     Serial.print("failed, rc="); Serial.println(client.state());
-
-    // Retry mDNS if resolution was missing
-    if (String(mqtt_server).endsWith(".local")) {
-      setupmDNS();
-    }
+    if (String(mqtt_server).endsWith(".local")) setupmDNS();
   }
 }
 
 void publishHeartbeat() {
   if (!client.connected()) return;
-
   unsigned long now = millis();
   if (now - lastHeartbeat >= heartbeatInterval) {
     lastHeartbeat = now;
-
     String heartbeatMsg = clientId + ": Alive";
     client.publish(heartbeatTopic.c_str(), heartbeatMsg.c_str(), true);
-
-    Serial.print("Published heartbeat: ");
-    Serial.println(heartbeatMsg);
+    Serial.printf("Published heartbeat: %s\n", heartbeatMsg.c_str());
   }
 }
 
@@ -238,7 +347,7 @@ void handleMDNS() {
 }
 
 // ===================================================
-// ----------------- SETUP / LOOP --------------------
+// ---------------- SETUP / LOOP ---------------------
 // ===================================================
 
 void setup() {
@@ -247,11 +356,12 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, HIGH);
 
-  loadConfig();       // Load saved settings
-  setupWifi();        // WiFi + captive portal if needed
+  loadConfig();     
+  loadIntervals();  
+  setupWifi();      
 
   client.setCallback(mqttCallback);
-  setupmDNS();        // Resolve broker IP via mDNS
+  setupmDNS();      
 }
 
 void loop() {
@@ -268,7 +378,7 @@ void loop() {
   if (client.connected()) {
     client.loop();
     publishHeartbeat();
+    publishMetrics();
+    publishEnergy();
   }
-
-  /*---TO-DO: publish energy readings from PZEM-004T to broker---*/
 }

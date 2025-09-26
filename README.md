@@ -31,11 +31,9 @@ Android application
 - ESP32
   - [x] WiFi and MQTT Broker reconnection
   - [x] Test MQTT
-  - [ ] Read and format energy readings from PZEM-004T
-  - [ ] Test publish pzem readings to broker
+  - [x] Read and format energy readings from PZEM-004T
+  - [x] Test publish pzem readings to broker
   - [x] Add esp32 status topics (heartbeat)
-  - [ ] Implement message buffer for status and energy readings
-        (in case broker is offline)
   - [x] Subscibe to commands topic on MQTT
   - [x] Parse and execute received commands from broker
   - [ ] Add status indicators (on the OLED display)

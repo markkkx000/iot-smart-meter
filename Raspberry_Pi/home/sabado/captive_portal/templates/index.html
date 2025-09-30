@@ -8,22 +8,81 @@
     <div class="container">
         <h1>📶 Raspberry Pi WiFi Config</h1>
 
-        <section class="add">
-            <h2>Add Network</h2>
-            <form method="POST">
-                <input type="text" name="ssid" placeholder="SSID" required>
-                <input type="password" name="password" placeholder="Password" required>
-                <button type="submit" name="add">➕ Add</button>
-            </form>
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">
+                        {{ message }}
+                        <button onclick="this.parentElement.remove()" class="close-flash">×</button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <section class="available">
+            <h2>Available Networks</h2>
+            <button onclick="refreshNetworks()" class="refresh-btn">🔄 Refresh</button>
+            
+            <div id="available-networks" class="network-list">
+                {% if available_networks %}
+                    {% for net in available_networks %}
+                        <div class="network-item" onclick="selectNetwork('{{ net.ssid }}', '{{ net.security }}')">
+                            <div class="network-info">
+                                <span class="network-ssid">{{ net.ssid }}</span>
+                                <span class="network-security">
+                                    {% if net.security and net.security != 'Open' %}
+                                        🔒 Secured
+                                    {% else %}
+                                        🔓 Open
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="signal-strength">
+                                {% if net.signal >= 75 %}
+                                    📶 Excellent
+                                {% elif net.signal >= 50 %}
+                                    📶 Good
+                                {% elif net.signal >= 25 %}
+                                    📶 Fair
+                                {% else %}
+                                    📶 Weak
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p>No networks found. Click refresh to scan.</p>
+                {% endif %}
+            </div>
         </section>
+
+        <!-- Password Modal -->
+        <div id="password-modal" class="modal">
+            <div class="modal-content">
+                <h3 id="modal-ssid">Connect to Network</h3>
+                <p id="modal-security" style="color: #666; font-size: 0.9em; margin: 5px 0;"></p>
+                <form method="POST" id="connect-form" onsubmit="return validateForm()">
+                    <input type="hidden" name="ssid" id="ssid-input">
+                    <input type="hidden" id="network-security" value="">
+                    <div id="password-field-container">
+                        <input type="password" name="password" id="password-input" placeholder="Enter password" autocomplete="off">
+                    </div>
+                    <div class="modal-buttons">
+                        <button type="submit" name="connect">Connect</button>
+                        <button type="button" onclick="closeModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <section class="saved">
             <h2>Saved Networks</h2>
-            {% if networks %}
+            {% if saved_networks %}
                 <ul>
-                    {% for net in networks %}
+                    {% for net in saved_networks %}
                         <li>
-                            {{ net }}
+                            <span>{{ net }}</span>
                             <button type="submit" form="remove-{{ net }}" class="remove">❌ Remove</button>
                             <form id="remove-{{ net }}" method="POST" style="display:none;">
                                 <input type="hidden" name="remove" value="{{ net }}">
@@ -36,6 +95,101 @@
             {% endif %}
         </section>
     </div>
+
+    <script>
+        function selectNetwork(ssid, security) {
+            document.getElementById('ssid-input').value = ssid;
+            document.getElementById('network-security').value = security;
+            document.getElementById('modal-ssid').textContent = 'Connect to: ' + ssid;
+            
+            const passwordInput = document.getElementById('password-input');
+            const passwordContainer = document.getElementById('password-field-container');
+            const securityInfo = document.getElementById('modal-security');
+            
+            // Check if network is open
+            if (!security || security === 'Open' || security === '' || security === '--') {
+                passwordContainer.style.display = 'none';
+                passwordInput.required = false;
+                passwordInput.value = '';
+                securityInfo.textContent = '🔓 Open Network (No password required)';
+            } else {
+                passwordContainer.style.display = 'block';
+                passwordInput.required = true;
+                passwordInput.value = '';
+                securityInfo.textContent = '🔒 Secured Network';
+            }
+            
+            document.getElementById('password-modal').style.display = 'flex';
+            if (passwordInput.required) {
+                passwordInput.focus();
+            }
+        }
+
+        function validateForm() {
+            const security = document.getElementById('network-security').value;
+            const password = document.getElementById('password-input').value;
+            
+            // If it's a secured network, ensure password is provided
+            if (security && security !== 'Open' && security !== '' && security !== '--') {
+                if (!password || password.trim() === '') {
+                    alert('Please enter a password for this secured network.');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function closeModal() {
+            document.getElementById('password-modal').style.display = 'none';
+            document.getElementById('password-input').value = '';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('password-modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        function refreshNetworks() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '⏳ Scanning...';
+            
+            fetch('/api/scan')
+                .then(response => response.json())
+                .then(networks => {
+                    const container = document.getElementById('available-networks');
+                    if (networks.length === 0) {
+                        container.innerHTML = '<p>No networks found.</p>';
+                    } else {
+                        container.innerHTML = networks.map(net => `
+                            <div class="network-item" onclick="selectNetwork('${net.ssid.replace(/'/g, "\\'")}', '${net.security}')">
+                                <div class="network-info">
+                                    <span class="network-ssid">${net.ssid}</span>
+                                    <span class="network-security">
+                                        ${net.security && net.security !== 'Open' ? '🔒 Secured' : '🔓 Open'}
+                                    </span>
+                                </div>
+                                <div class="signal-strength">
+                                    ${net.signal >= 75 ? '📶 Excellent' :
+                                      net.signal >= 50 ? '📶 Good' :
+                                      net.signal >= 25 ? '📶 Fair' : '📶 Weak'}
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error scanning:', error);
+                    alert('Failed to scan networks');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Refresh';
+                });
+        }
+    </script>
 </body>
 </html>
-

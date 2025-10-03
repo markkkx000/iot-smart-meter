@@ -174,16 +174,16 @@ sudo reboot
 
 ```
 dev/
-├── <CLIENT_ID>/
-│   ├── status             # "Online"/"Offline" (retained, LWT)
-│   ├── heartbeat          # "Alive" (periodic keep-alive)
-│   ├── relay/
-│   │   ├── state          # Current relay status: "0" or "1" (retained)
-│   │   └── commands       # Control commands: RELAY_ON/RELAY_OFF
-│   └── pzem/
-│       ├── metrics        # {"voltage":220.5,"current":1.2,"power":264.6}
-│       ├── energy         # Cumulative kWh (retained)
-│       └── config         # {"metrics":5000,"energy":120000}
+└── <CLIENT_ID>/
+    ├── status             # "Online"/"Offline" (retained, LWT)
+    ├── heartbeat          # "Alive" (periodic keep-alive)
+    ├── relay/
+    │   ├── state          # Current relay status: "0" or "1" (retained)
+    │   └── commands       # Control commands: RELAY_ON/RELAY_OFF
+    └── pzem/
+        ├── metrics        # {"voltage":220.5,"current":1.2,"power":264.6}
+        ├── energy         # Cumulative kWh (retained)
+        └── config         # {"metrics":5000,"energy":120000}
 ```
 
 **Wildcard Subscriptions for Multi-Device Monitoring:**

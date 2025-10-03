@@ -7,7 +7,7 @@
 #include <ArduinoJson.h>
 
 #define RESET_PIN 0       // BOOT button
-#define RELAY_PIN 26
+#define RELAY_PIN 4
 #define PZEM_RX 16
 #define PZEM_TX 17
 
@@ -353,12 +353,12 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, HIGH);
 
-  loadConfig();     
-  loadIntervals();  
-  setupWifi();      
+  loadConfig();
+  loadIntervals();
+  setupWifi();
 
   client.setCallback(mqttCallback);
-  setupmDNS();      
+  setupmDNS();
 }
 
 void loop() {

@@ -18,7 +18,7 @@ A distributed energy monitoring system built with ESP32 microcontrollers, Raspbe
 
 ### ESP32 Energy Meter Node
 - Measures voltage, current, power, and energy consumption using PZEM-004T v3.0 sensor
-- Controls relay (GPIO 26) for remote switching of connected appliances
+- Controls relay (GPIO 4) for remote switching of connected appliances
 - Publishes telemetry data to MQTT broker at configurable intervals:
   - Real-time metrics (voltage, current, power): every 3 seconds
   - Cumulative energy readings: every 60 seconds
@@ -80,7 +80,7 @@ GND      -->   GND
 
 Relay          ESP32
 -----          -----
-IN       <--   GPIO 26
+IN       <--   GPIO 4
 VCC      -->   5V
 GND      -->   GND
 ```
@@ -250,7 +250,7 @@ CHECK_TIMEOUT=15            # Seconds to wait for connection
 ## Troubleshooting
 
 **ESP32 won't connect to WiFi:**
-- Hold BOOT button for 3+ seconds to reset WiFi credentials
+- Press BOOT button to reset WiFi credentials
 - Connect to `ESP32_AP` and reconfigure
 
 **Can't access captive portal on Pi:**

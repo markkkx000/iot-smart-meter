@@ -6,12 +6,12 @@ A distributed energy monitoring system built with ESP32 microcontrollers, Raspbe
 
 ```
 ┌─────────────┐       MQTT       ┌──────────────┐       MQTT       ┌─────────────┐
-│   ESP32     │ ◄──────────────► │ Raspberry Pi │ ◄──────────────► │   Android   │
-│   Nodes     │   (WiFi)         │ MQTT Broker  │   (WiFi)         │     App     │
+│   ESP32     │ <--------------> │ Raspberry Pi │ <--------------> │   Android   │
+│   Nodes     │      (WiFi)      │ MQTT Broker  │      (WiFi)      │     App     │
 └─────────────┘                  └──────────────┘                  └─────────────┘
-      │                                                                     │
-  - PZEM-004T                                                             - Dashboard
-  - Relay Control                                                         - Control Panel
+      │                                                                   │
+ - PZEM-004T                                                       - Dashboard
+ - Relay Control                                                   - Control Panel
 ```
 
 ## Components

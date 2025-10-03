@@ -10,8 +10,8 @@ A distributed energy monitoring system built with ESP32 microcontrollers, Raspbe
 │   Nodes     │   (WiFi)         │ MQTT Broker  │   (WiFi)         │     App     │
 └─────────────┘                  └──────────────┘                  └─────────────┘
       │                                                                     │
-   - PZEM-004T                                                           - Dashboard
-   - Relay Control                                                       - Control Panel
+  - PZEM-004T                                                             - Dashboard
+  - Relay Control                                                         - Control Panel
 ```
 
 ## Components
@@ -35,7 +35,7 @@ A distributed energy monitoring system built with ESP32 microcontrollers, Raspbe
 - `dev/<CLIENT_ID>/relay/commands` - Relay control (RELAY_ON/RELAY_OFF)
 - `dev/<CLIENT_ID>/pzem/config` - Configuration updates (JSON)
 - `dev/<CLIENT_ID>/heartbeat` - Keep-alive messages
-- `dev/all/status` - Device online/offline status
+- `dev/<CLIENT_ID>/status` - Device online/offline status (retained, with LWT)
 
 ### Raspberry Pi MQTT Broker
 - Runs Mosquitto MQTT broker for message routing
@@ -175,17 +175,28 @@ sudo reboot
 ```
 dev/
 ├── <CLIENT_ID>/
+│   ├── status             # "Online"/"Offline" (retained, LWT)
+│   ├── heartbeat          # "Alive" (periodic keep-alive)
 │   ├── relay/
-│   │   ├── state          # Current relay status (retained)
-│   │   └── commands       # Control commands (RELAY_ON/RELAY_OFF)
-│   ├── pzem/
-│   │   ├── metrics        # {"voltage":220.5,"current":1.2,"power":264.6}
-│   │   ├── energy         # Cumulative kWh
-│   │   └── config         # {"metrics":5000,"energy":120000}
-│   └── heartbeat          # "<CLIENT_ID>: Alive"
-└── all/
-    └── status             # "<CLIENT_ID>: Online/Offline" (LWT)
+│   │   ├── state          # Current relay status: "0" or "1" (retained)
+│   │   └── commands       # Control commands: RELAY_ON/RELAY_OFF
+│   └── pzem/
+│       ├── metrics        # {"voltage":220.5,"current":1.2,"power":264.6}
+│       ├── energy         # Cumulative kWh (retained)
+│       └── config         # {"metrics":5000,"energy":120000}
 ```
+
+**Wildcard Subscriptions for Multi-Device Monitoring:**
+
+To monitor all ESP32 devices from a single subscription (e.g., in the Android app):
+
+- `dev/+/status` - Get status updates from all devices
+- `dev/+/heartbeat` - Monitor heartbeats from all devices
+- `dev/+/pzem/metrics` - Receive metrics from all devices
+- `dev/+/pzem/energy` - Track energy from all devices
+- `dev/+/relay/state` - Monitor all relay states
+
+Each device maintains its own independent topics, ensuring status updates don't overwrite each other.
 
 ## Configuration
 

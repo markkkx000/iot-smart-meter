@@ -66,7 +66,7 @@ void loadIntervals() {
 
 String clientId        = "ESP32-" + getUID();
 String relayStateTopic = "dev/" + clientId + "/relay/state";
-String devStatusTopic  = "dev/all/status";
+String devStatusTopic  = "dev/" + clientId + "/status";
 String commandsTopic   = "dev/" + clientId + "/relay/commands";
 String heartbeatTopic  = "dev/" + clientId + "/heartbeat";
 String configTopic     = "dev/" + clientId + "/pzem/config";
@@ -102,8 +102,6 @@ void handleRelayState(const String& msg) {
   }
 }
 
-
-// ------ UNTESTED -------
 void handleConfig(const String& msg) {
   // Example JSON: {"metrics":5000,"energy":120000}
   StaticJsonDocument<128> doc;
@@ -293,8 +291,8 @@ void connectMQTT() {
     return;
   }
 
-  String offlineMsg = clientId + ": Offline";
-  String onlineMsg  = clientId + ": Online";
+  String offlineMsg = "Offline";
+  String onlineMsg  = "Online";
 
   Serial.print("Connecting to MQTT...");
 
@@ -323,7 +321,7 @@ void publishHeartbeat() {
   unsigned long now = millis();
   if (now - lastHeartbeat >= heartbeatInterval) {
     lastHeartbeat = now;
-    String heartbeatMsg = clientId + ": Alive";
+    String heartbeatMsg = "Alive";
     client.publish(heartbeatTopic.c_str(), heartbeatMsg.c_str(), true);
     Serial.printf("Published heartbeat: %s\n", heartbeatMsg.c_str());
   }

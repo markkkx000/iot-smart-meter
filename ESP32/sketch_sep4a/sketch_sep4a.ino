@@ -5,19 +5,24 @@
 #include <Preferences.h>
 #include <PZEM004Tv30.h>
 #include <ArduinoJson.h>
+#include <U8g2lib.h>
+#include <Wire.h>
 
 #define RESET_PIN 0       // BOOT button
 #define RELAY_PIN 4
 #define PZEM_RX 16
 #define PZEM_TX 17
+#define OLED_SDA 22
+#define OLED_SCL 23
 
 WiFiManager wm;
 WiFiClient espClient;
 PubSubClient client(espClient);
 PZEM004Tv30 pzem(Serial2, PZEM_RX, PZEM_TX);
+U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE, OLED_SCL, OLED_SDA);
 
 char mqtt_server[40] = "mqttpi.local";
-char mqtt_port[6]   = "1883";
+char mqtt_port[6]    = "1883";
 
 unsigned long lastMDNSRetry = 0;
 const unsigned long MDNS_RETRY_INTERVAL = 5000;
@@ -33,6 +38,13 @@ unsigned long metricsInterval = 3000;   // 3 seconds
 unsigned long energyInterval  = 60000;  // 60 seconds
 unsigned long lastMetricsPublish = 0;
 unsigned long lastEnergyPublish  = 0;
+
+// --- Display timing --- ADD THIS SECTION
+unsigned long lastDisplayUpdate = 0;
+const unsigned long displayUpdateInterval = 1000;
+float currentPower = 0.0;
+String wifiStatus = "Disconnected";
+String mqttStatus = "Disconnected";
 
 // ===================================================
 // ---------------- HELPERS --------------------------
@@ -58,6 +70,43 @@ void loadIntervals() {
     energyInterval  = pref.getULong("energy", 60000);
     pref.end();
   }
+}
+
+// ===================================================
+// ---------------- OLED DISPLAY ---------------------
+// ===================================================
+
+void updateDisplay() {
+  display.clearBuffer();
+
+  display.setFont(u8g2_font_5x7_tf);
+  String deviceID = "ESP32-" + getUID();
+  display.drawStr(0, 8, deviceID.c_str());
+
+  display.setFont(u8g2_font_6x10_tf);
+  display.drawStr(0, 20, "WiFi:");
+  display.drawStr(35, 20, wifiStatus.c_str());
+
+  display.drawStr(0, 32, "MQTT:");
+  display.drawStr(35, 32, mqttStatus.c_str());
+
+  if (WiFi.status() == WL_CONNECTED && wifiStatus != "AP Mode") {
+    display.setFont(u8g2_font_5x7_tf);
+    String ip = WiFi.localIP().toString();
+    display.drawStr(0, 42, ip.c_str());
+    display.setFont(u8g2_font_6x10_tf);
+  }
+
+  display.drawStr(0, 54, "Power:");
+  char powerStr[16];
+  snprintf(powerStr, sizeof(powerStr), "%.1fW", currentPower);
+  display.drawStr(45, 54, powerStr);
+
+  display.drawStr(0, 64, "Relay:");
+  bool relayState = (digitalRead(RELAY_PIN) == LOW);
+  display.drawStr(45, 64, relayState ? "ON" : "OFF");
+
+  display.sendBuffer();
 }
 
 // ===================================================
@@ -162,8 +211,11 @@ void publishMetrics() {
 
   if (isnan(voltage) || isnan(current) || isnan(power)) {
     Serial.println("⚠️ Metrics reading error, skipping...");
+    currentPower = 0.0;
     return;
   }
+
+  currentPower = power;
 
   StaticJsonDocument<128> doc;
   doc["voltage"] = voltage;
@@ -179,6 +231,7 @@ void publishMetrics() {
 
 void publishEnergy() {
   if (!client.connected()) return;
+
   unsigned long now = millis();
   if (now - lastEnergyPublish < energyInterval) return;
   lastEnergyPublish = now;
@@ -221,6 +274,8 @@ void loadConfig() {
 }
 
 void setupWifi() {
+  wifiStatus = "Connecting...";
+  
   WiFiManagerParameter custom_mqtt_server("server", "MQTT Server", mqtt_server, 40);
   WiFiManagerParameter custom_mqtt_port("port", "MQTT Port", mqtt_port, 6);
 
@@ -237,6 +292,7 @@ void setupWifi() {
   strcpy(mqtt_port, custom_mqtt_port.getValue());
   saveConfig();
 
+  wifiStatus = "Connected";
   Serial.println("WiFi connected!");
   Serial.print("IP Address: "); Serial.println(WiFi.localIP());
   Serial.print("MQTT Server: "); Serial.println(mqtt_server);
@@ -269,10 +325,12 @@ void setupmDNS() {
       Serial.println(brokerIP);
       client.setServer(brokerIP, atoi(mqtt_port));
       mdnsResolved = true;
+      mqttStatus = "Resolved";
       connectMQTT();
     } else {
       Serial.println("mDNS resolution failed, will retry later...");
       mdnsResolved = false;
+      mqttStatus = "DNS Fail";
     }
   } else {
     Serial.println("WARNING: using bare IP, consider mDNS for dynamic IPs");
@@ -288,12 +346,14 @@ void setupmDNS() {
 void connectMQTT() {
   if (client.connected()) {
     Serial.println("Already connected to server... Nothing to do");
+    mqttStatus = "Connected";
     return;
   }
 
   String offlineMsg = "Offline";
   String onlineMsg  = "Online";
 
+  mqttStatus = "Connecting...";
   Serial.print("Connecting to MQTT...");
 
   if (client.connect(
@@ -301,9 +361,10 @@ void connectMQTT() {
         devStatusTopic.c_str(),
         1, true,
         offlineMsg.c_str()
-      )) 
+      ))
   {
     Serial.println("connected");
+    mqttStatus = "Connected";
     client.publish(devStatusTopic.c_str(), onlineMsg.c_str(), true);
     Serial.printf("Published Message: \"%s\" to %s\n", onlineMsg.c_str(), devStatusTopic.c_str());
 
@@ -311,6 +372,7 @@ void connectMQTT() {
     client.subscribe(relayStateTopic.c_str());
     client.subscribe(configTopic.c_str());
   } else {
+    mqttStatus = "Failed";
     Serial.print("failed, rc="); Serial.println(client.state());
     if (String(mqtt_server).endsWith(".local")) setupmDNS();
   }
@@ -349,6 +411,18 @@ void handleMDNS() {
 
 void setup() {
   Serial.begin(115200);
+  Wire.begin(22, 23);
+  delay(100);
+  display.setI2CAddress(0x3C << 1);
+
+  display.begin();
+  display.clearBuffer();
+  display.setFont(u8g2_font_6x10_tf);
+  display.drawStr(25, 30, "SaBaDo Energy");
+  display.drawStr(35, 45, "Meter v1.0");
+  display.sendBuffer();
+  delay(2000);
+
   pinMode(RESET_PIN, INPUT_PULLUP);
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, HIGH);
@@ -377,5 +451,12 @@ void loop() {
     publishHeartbeat();
     publishMetrics();
     publishEnergy();
+  } else {
+    mqttStatus = "Disconnected";
+  }
+
+  if (millis() - lastDisplayUpdate >= displayUpdateInterval) {
+    lastDisplayUpdate = millis();
+    updateDisplay();
   }
 }

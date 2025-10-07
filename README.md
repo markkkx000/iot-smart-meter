@@ -232,9 +232,9 @@ CHECK_TIMEOUT=15            # Seconds to wait for connection
 - ✅ WiFi fallback with captive portal
 - ✅ Web-based WiFi management interface
 - ✅ Automatic hotspot recovery on failed connections
+- ✅ OLED status display for ESP32
 
 ### In Progress
-- 🔄 OLED status display for ESP32
 - 🔄 Raspberry Pi data parsing and storage
 - 🔄 ESP32 status callbacks on Pi
 - 🔄 Android application development

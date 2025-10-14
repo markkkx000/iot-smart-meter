@@ -282,6 +282,22 @@ void setupWifi() {
   wm.addParameter(&custom_mqtt_server);
   wm.addParameter(&custom_mqtt_port);
 
+  wm.setAPCallback([](WiFiManager *myWiFiManager) {
+    display.clearBuffer();
+    display.setFont(u8g2_font_6x10_tf);
+    display.drawStr(25, 15, "SaBaDo Energy");
+    display.drawStr(35, 28, "Meter v1.0");
+
+    display.drawStr(0, 45, "AP Mode Active");
+    display.setFont(u8g2_font_5x7_tf);
+    display.drawStr(0, 56, "SSID: ESP32_AP");
+    display.drawStr(0, 64, "IP: 192.168.4.1");
+    display.sendBuffer();
+
+    Serial.println("Entered config mode");
+    Serial.println(WiFi.softAPIP());
+  });
+
   if (!wm.autoConnect("ESP32_AP")) {
     Serial.println("Failed to connect, restarting...");
     delay(3000);
@@ -337,6 +353,31 @@ void setupmDNS() {
     client.setServer(mqtt_server, atoi(mqtt_port));
     mdnsResolved = true;
   }
+}
+
+// ===================================================
+// -------------- WIFI EVENT HANDLERS ----------------
+// ===================================================
+
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
+  Serial.println("Connected to AP successfully!");
+}
+
+void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
+  wifiStatus = "Connected";
+  Serial.println("WiFi connected");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
+  wifiStatus = "Disconnected";
+  mqttStatus = "Disconnected";
+  Serial.println("Disconnected from WiFi access point");
+  Serial.print("WiFi lost connection. Reason: ");
+  Serial.println(info.wifi_sta_disconnected.reason);
+  Serial.println("Trying to Reconnect");
+  WiFi.begin();
 }
 
 // ===================================================
@@ -429,6 +470,11 @@ void setup() {
 
   loadConfig();
   loadIntervals();
+
+  WiFi.onEvent(WiFiStationConnected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
+  WiFi.onEvent(WiFiStationDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+  WiFi.onEvent(WiFiGotIP, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+
   setupWifi();
 
   client.setCallback(mqttCallback);

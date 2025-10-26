@@ -10,8 +10,6 @@ WorkingDirectory=/home/sabado/smart_meter
 ExecStart=/usr/bin/python3 scheduler.py
 Restart=always
 RestartSec=5
-StandardOutput=syslog
-StandardError=syslog
 SyslogIdentifier=smart-meter-scheduler
 
 [Install]

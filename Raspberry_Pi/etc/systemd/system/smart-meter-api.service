@@ -9,8 +9,6 @@ WorkingDirectory=/home/sabado/smart_meter
 ExecStart=/usr/bin/python3 api.py
 Restart=always
 RestartSec=5
-StandardOutput=syslog
-StandardError=syslog
 SyslogIdentifier=smart-meter-api
 
 [Install]

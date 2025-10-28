@@ -174,6 +174,62 @@ def delete_schedule(schedule_id):
             'error': str(e)
         }), 500
 
+@app.route('/api/schedules/<int:schedule_id>', methods=['PUT'])
+def update_schedule(schedule_id):
+    """
+    Update an existing schedule
+
+    Request body (same as create, but all fields optional):
+    {
+        "start_time": "09:00",     // Optional
+        "end_time": "21:00",       // Optional
+        "duration_seconds": 7200,  // Optional
+        "days_of_week": "1,2,3,4,5" // Optional
+    }
+    """
+    try:
+        data = request.get_json()
+
+        # Get existing schedule
+        schedule = db.get_schedule(schedule_id)
+        if not schedule:
+            return jsonify({
+                'success': False,
+                'error': 'Schedule not found'
+            }), 404
+
+        # Update only provided fields
+        updated_fields = {}
+        if 'start_time' in data:
+            updated_fields['start_time'] = data['start_time']
+        if 'end_time' in data:
+            updated_fields['end_time'] = data['end_time']
+        if 'duration_seconds' in data:
+            updated_fields['duration_seconds'] = data['duration_seconds']
+        if 'days_of_week' in data:
+            updated_fields['days_of_week'] = data['days_of_week']
+
+        # Update in database
+        db.update_schedule(schedule_id, **updated_fields)
+
+        log.info(f"Updated schedule {schedule_id}")
+        restart_success = restart_scheduler()
+
+        return jsonify({
+            'success': True,
+            'schedule_id': schedule_id,
+            'scheduler_restarted': restart_success,
+            'message': 'Schedule updated and scheduler restarted successfully!' if restart_success 
+                    else 'Schedule updated, but scheduler restart failed - restart manually.'
+        }), 200
+
+    except Exception as e:
+        log.error(f"Error updating schedule {schedule_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 # ============= THRESHOLDS ENDPOINTS =============
 

@@ -118,6 +118,25 @@ class Database:
         with self.get_connection() as conn:
             conn.execute('DELETE FROM schedules WHERE id = ?', (schedule_id,))
 
+    def update_schedule(self, schedule_id, **kwargs):
+        """Update schedule fields"""
+        with self.get_connection() as conn:
+            # Build UPDATE query dynamically based on provided kwargs
+            fields = []
+            values = []
+
+            for key, value in kwargs.items():
+                if key in ['start_time', 'end_time', 'duration_seconds', 'days_of_week']:
+                    fields.append(f"{key} = ?")
+                    values.append(value)
+
+            if not fields:
+                return  # Nothing to update
+
+            values.append(schedule_id)
+            query = f"UPDATE schedules SET {', '.join(fields)} WHERE id = ?"
+            conn.execute(query, values)
+
     def get_all_thresholds(self, enabled=None):
         """Get all thresholds"""
         with self.get_connection() as conn:

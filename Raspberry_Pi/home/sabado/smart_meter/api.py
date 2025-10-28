@@ -3,8 +3,9 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import logging
+import subprocess
 from database import Database
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for Android app
@@ -15,6 +16,25 @@ log = logging.getLogger("scheduler-api")
 
 # Initialize database
 db = Database('/home/sabado/smart_meter/scheduler.db')
+
+def restart_scheduler():
+    """Restart the scheduler service to reload jobs"""
+    try:
+        result = subprocess.run(
+            ['sudo', 'systemctl', 'restart', 'smart-meter-scheduler.service'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True
+        )
+        log.info("Scheduler service restarted successfully")
+        return True
+    except subprocess.CalledProcessError as e:
+        log.error(f"Failed to restart scheduler: {e.stderr}")
+        return False
+    except Exception as e:
+        log.error(f"Error during scheduler restart: {e}")
+        return False
 
 # ============= SCHEDULES ENDPOINTS =============
 
@@ -58,7 +78,7 @@ def get_device_schedules(client_id):
 def create_schedule():
     """
     Create a new schedule
-    
+
     Request body:
     {
         "client_id": "ESP32-fa641d44",
@@ -70,24 +90,24 @@ def create_schedule():
     """
     try:
         data = request.get_json()
-        
+
         # Validate required fields
         if 'client_id' not in data or 'schedule_type' not in data:
             return jsonify({
                 'success': False,
                 'error': 'Missing required fields: client_id, schedule_type'
             }), 400
-        
+
         client_id = data['client_id']
         schedule_type = data['schedule_type']
-        
+
         # Validate schedule type
         if schedule_type not in ['daily', 'timer']:
             return jsonify({
                 'success': False,
                 'error': 'schedule_type must be "daily" or "timer"'
             }), 400
-        
+
         # Type-specific validation
         if schedule_type == 'daily':
             if 'start_time' not in data or 'end_time' not in data:
@@ -95,14 +115,14 @@ def create_schedule():
                     'success': False,
                     'error': 'Daily schedules require start_time and end_time'
                 }), 400
-        
+
         if schedule_type == 'timer':
             if 'duration_seconds' not in data:
                 return jsonify({
                     'success': False,
                     'error': 'Timer schedules require duration_seconds'
                 }), 400
-        
+
         # Add schedule to database
         schedule_id = db.add_schedule(
             client_id=client_id,
@@ -112,15 +132,18 @@ def create_schedule():
             duration_seconds=data.get('duration_seconds'),
             days_of_week=data.get('days_of_week')
         )
-        
+
         log.info(f"Created schedule {schedule_id} for {client_id}")
-        
+        restart_success = restart_scheduler()
+
         return jsonify({
             'success': True,
             'schedule_id': schedule_id,
-            'message': 'Schedule created successfully. Restart scheduler service to apply.'
+            'scheduler_restarted': restart_success,
+            'message': 'Schedule created and scheduler restarted successfully!' if restart_success 
+                    else 'Schedule created, but scheduler restart failed - restart manually.'
         }), 201
-        
+
     except Exception as e:
         log.error(f"Error creating schedule: {e}")
         return jsonify({
@@ -135,12 +158,15 @@ def delete_schedule(schedule_id):
     try:
         db.delete_schedule(schedule_id)
         log.info(f"Deleted schedule {schedule_id}")
-        
+        restart_success = restart_scheduler()
+
         return jsonify({
             'success': True,
-            'message': 'Schedule deleted successfully. Restart scheduler service to apply.'
+            'scheduler_restarted': restart_success,
+            'message': 'Schedule deleted and scheduler restarted successfully!' if restart_success 
+                    else 'Schedule deleted, but scheduler restart failed - restart manually.'
         }), 200
-        
+
     except Exception as e:
         log.error(f"Error deleting schedule {schedule_id}: {e}")
         return jsonify({
@@ -157,7 +183,7 @@ def get_threshold(client_id):
     try:
         thresholds = db.get_all_thresholds()
         threshold = next((t for t in thresholds if t['client_id'] == client_id), None)
-        
+
         if threshold:
             return jsonify({
                 'success': True,
@@ -168,7 +194,7 @@ def get_threshold(client_id):
                 'success': False,
                 'error': 'No threshold found for this device'
             }), 404
-            
+
     except Exception as e:
         log.error(f"Error getting threshold for {client_id}: {e}")
         return jsonify({
@@ -181,7 +207,7 @@ def get_threshold(client_id):
 def set_threshold(client_id):
     """
     Set or update threshold for a device
-    
+
     Request body:
     {
         "limit_kwh": 1.5,
@@ -190,34 +216,34 @@ def set_threshold(client_id):
     """
     try:
         data = request.get_json()
-        
+
         # Validate required fields
         if 'limit_kwh' not in data or 'reset_period' not in data:
             return jsonify({
                 'success': False,
                 'error': 'Missing required fields: limit_kwh, reset_period'
             }), 400
-        
+
         limit_kwh = float(data['limit_kwh'])
         reset_period = data['reset_period']
-        
+
         # Validate reset_period
         if reset_period not in ['daily', 'weekly', 'monthly']:
             return jsonify({
                 'success': False,
                 'error': 'reset_period must be "daily", "weekly", or "monthly"'
             }), 400
-        
+
         # Set threshold in database
         db.set_threshold(client_id, limit_kwh, reset_period)
-        
+
         log.info(f"Set threshold for {client_id}: {limit_kwh} kWh ({reset_period})")
-        
+
         return jsonify({
             'success': True,
             'message': 'Threshold set successfully'
         }), 200
-        
+
     except Exception as e:
         log.error(f"Error setting threshold for {client_id}: {e}")
         return jsonify({
@@ -232,13 +258,13 @@ def delete_threshold(client_id):
     try:
         thresholds = db.get_all_thresholds()
         threshold = next((t for t in thresholds if t['client_id'] == client_id), None)
-        
+
         if threshold:
             db.disable_threshold(threshold['id'])
             # Actually delete instead of just disabling
             with db.get_connection() as conn:
                 conn.execute('DELETE FROM thresholds WHERE client_id = ?', (client_id,))
-            
+
             log.info(f"Deleted threshold for {client_id}")
             return jsonify({
                 'success': True,
@@ -249,7 +275,7 @@ def delete_threshold(client_id):
                 'success': False,
                 'error': 'No threshold found for this device'
             }), 404
-            
+
     except Exception as e:
         log.error(f"Error deleting threshold for {client_id}: {e}")
         return jsonify({
@@ -271,7 +297,7 @@ def get_energy_data(client_id):
     try:
         limit = request.args.get('limit', 100, type=int)
         period = request.args.get('period', None)
-        
+
         with db.get_connection() as conn:
             if period:
                 # Get aggregated consumption for period
@@ -289,9 +315,9 @@ def get_energy_data(client_id):
                         'success': False,
                         'error': 'Invalid period. Use "day", "week", or "month"'
                     }), 400
-                
+
                 consumption = db.get_consumption_since(client_id, period_start)
-                
+
                 return jsonify({
                     'success': True,
                     'client_id': client_id,
@@ -307,16 +333,16 @@ def get_energy_data(client_id):
                     ORDER BY timestamp DESC
                     LIMIT ?
                 ''', (client_id, limit))
-                
+
                 readings = [{'energy_kwh': row['energy_kwh'], 'timestamp': row['timestamp']} 
                            for row in cursor.fetchall()]
-                
+
                 return jsonify({
                     'success': True,
                     'client_id': client_id,
                     'readings': readings
                 }), 200
-                
+
     except Exception as e:
         log.error(f"Error getting energy data for {client_id}: {e}")
         return jsonify({
@@ -341,17 +367,17 @@ def get_devices():
                 GROUP BY client_id
                 ORDER BY last_seen DESC
             ''')
-            
+
             devices = [{'client_id': row['client_id'], 
                        'last_seen': row['last_seen'],
                        'current_energy_kwh': row['current_energy']} 
                       for row in cursor.fetchall()]
-            
+
             return jsonify({
                 'success': True,
                 'devices': devices
             }), 200
-            
+
     except Exception as e:
         log.error(f"Error getting devices: {e}")
         return jsonify({

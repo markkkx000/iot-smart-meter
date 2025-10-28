@@ -83,11 +83,21 @@ def create_schedule():
     Request body:
     {
         "client_id": "ESP32-fa641d44",
-        "schedule_type": "daily",  // or "timer"
-        "start_time": "08:00",     // Required for daily
-        "end_time": "20:00",       // Required for daily
-        "duration_seconds": 120    // Required for timer
+        "schedule_type": "daily",       // or "timer"
+        "start_time": "08:00",          // Required for daily (HH:MM format)
+        "end_time": "20:00",            // Required for daily (HH:MM format)
+        "duration_seconds": 120,        // Required for timer
+        "days_of_week": "0,1,2,3,4"     // Optional: 0=Mon, 1=Tue, ..., 6=Sun
     }
+
+    "days_of_week" examples:
+    - Monday-Friday: "0,1,2,3,4"
+    - Weekends only: "5,6"
+    - Tue/Thu: "1,3"
+    - All days: Omit field or set to null
+
+    Alternative: Use three-letter day abbreviations instead of numbers:
+    - "mon,tue,wed,thu,fri,sat,sun" (also works)
     """
     try:
         data = request.get_json()
@@ -191,9 +201,9 @@ def update_schedule(schedule_id):
 
     Request body (same as create, but all fields optional):
     {
-        "start_time": "09:00",     // Optional
-        "end_time": "21:00",       // Optional
-        "duration_seconds": 7200,  // Optional
+        "start_time": "09:00",      // Optional
+        "end_time": "21:00",        // Optional
+        "duration_seconds": 7200,   // Optional
         "days_of_week": "1,2,3,4,5" // Optional
     }
     """

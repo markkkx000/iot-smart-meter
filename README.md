@@ -78,11 +78,22 @@ A distributed energy monitoring and automation system built with ESP32 microcont
 
 **Features:**
 - **Daily Schedules**: Turn relays ON/OFF at specific times (recurring)
+  - Supports day-of-week filtering (e.g., weekdays only: "1,2,3,4,5")
+  - APScheduler format: 0=Monday, 6=Sunday
+  - If not specified, runs every day
 - **Timer Schedules**: One-time countdown timers for temporary operations
+  - Starts immediately upon creation
+  - Automatically turns relay OFF after specified duration
+  - Self-deletes after execution
 - **Energy Thresholds**: Auto-shutoff when consumption exceeds limits
   - Daily, weekly, or monthly reset periods
   - Automatic relay disconnect on threshold breach
   - Alert notifications via MQTT
+  - Must be manually re-enabled after triggering (prevents repeated shutoffs)
+- **Schedule Management**: Create, update, and delete schedules via REST API
+  - Partial updates supported (modify only specific fields)
+  - Time format validation (HH:MM)
+  - Automatic scheduler restart on changes
 
 #### 4. REST API Service
 - Flask-based API for Android app integration
@@ -241,6 +252,9 @@ cp -r Raspberry_Pi/home/sabado/captive_portal/* /home/$USER/captive_portal/
 
 # Copy smart meter scheduler and API
 cp -r Raspberry_Pi/home/sabado/smart_meter/* /home/$USER/smart_meter/
+
+# Update database paths in Python files
+sed -i "s|/home/sabado/smart_meter|/home/$USER/smart_meter|g" /home/$USER/smart_meter/*.py
 ```
 
 **Note:** Update service files to use your username instead of `sabado`:
@@ -437,7 +451,7 @@ Create a new schedule.
   "schedule_type": "daily",
   "start_time": "08:00",
   "end_time": "20:00",
-  "days_of_week": "1,2,3,4,5"  // Optional: Monday-Friday
+  "days_of_week": "0,1,2,3,4"  // Optional: 0=Mon, 6=Sun (e.g., "0,1,2,3,4" = Mon-Fri)
 }
 ```
 
@@ -459,6 +473,40 @@ Create a new schedule.
   "message": "Schedule created and scheduler restarted successfully!"
 }
 ```
+
+---
+
+#### Update Schedule
+
+**PUT** `/api/schedules/<schedule_id>`
+
+Update an existing schedule. All fields are optional - only provided fields will be updated.
+
+**Request Body:**
+```json
+{
+  "start_time": "09:00",          // Optional - Update start time
+  "end_time": "21:00",            // Optional - Update end time
+  "duration_seconds": 7200,     // Optional - Update timer duration
+  "days_of_week": "5,6"       // Optional - Update days (0=Mon, 6=Sun)
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "schedule_id": 5,
+  "scheduler_restarted": true,
+  "message": "Schedule updated and scheduler restarted successfully!"
+}
+```
+
+**Notes:**
+- Time format must be HH:MM (24-hour format)
+- For daily schedules: Can update start_time, end_time, and days_of_week
+- For timer schedules: Can update duration_seconds
+- Scheduler service automatically restarts to apply changes
 
 ---
 
@@ -528,8 +576,13 @@ Set or update energy threshold for a device.
 
 **Behavior:**
 - When consumption exceeds `limit_kwh`, relay automatically turns OFF
-- Threshold is disabled after triggering (must be re-enabled manually)
-- Reset periods: `daily` (midnight), `weekly` (Monday), `monthly` (1st of month)
+- Threshold is disabled after triggering to prevent repeated shutoffs
+- **Must be manually re-enabled** by deleting and recreating the threshold
+- This design prevents the relay from repeatedly cycling if consumption remains high
+- Reset periods determine when consumption calculation starts:
+  - `daily` - Resets at midnight (00:00)
+  - `weekly` - Resets every Monday at midnight
+  - `monthly` - Resets on the 1st of each month at midnight
 
 ---
 
@@ -666,10 +719,10 @@ The scheduler uses SQLite database at `/home/<user>/smart_meter/scheduler.db`.
 - `id` - Schedule ID (primary key)
 - `client_id` - ESP32 device ID
 - `schedule_type` - "daily" or "timer"
-- `start_time` - Daily schedule start time (HH:MM)
-- `end_time` - Daily schedule end time (HH:MM)
-- `duration_seconds` - Timer duration
-- `days_of_week` - Comma-separated days (1=Monday, 7=Sunday)
+- `start_time` - Daily schedule start time (HH:MM format, 24-hour)
+- `end_time` - Daily schedule end time (HH:MM format, 24-hour)
+- `duration_seconds` - Timer duration (only for timer type)
+- `days_of_week` - Comma-separated days for daily schedules (0=Mon, 6=Sun, e.g., "0,1,2,3,4" for weekdays)
 - `enabled` - Active status (1/0)
 - `created_at` - Creation timestamp
 
@@ -707,6 +760,40 @@ sqlite3 /home/$USER/smart_meter/scheduler.db \
 # Check threshold status
 sqlite3 /home/$USER/smart_meter/scheduler.db "SELECT * FROM thresholds;"
 ```
+
+## Design Decisions
+
+### Timer Schedules Start Immediately
+Timer schedules (`schedule_type: "timer"`) are designed for immediate countdown operations. When created, they:
+- Start counting down from the moment of creation
+- Turn the relay OFF after `duration_seconds` expires
+- Automatically delete themselves after execution
+
+**Use case:** "Turn off the device in 2 hours from now"
+
+For scheduled future actions at specific times, use daily schedules instead.
+
+### Thresholds Require Manual Re-enablement
+When an energy threshold is exceeded:
+1. Relay automatically turns OFF
+2. Alert is published to MQTT topic `dev/<CLIENT_ID>/threshold/alert`
+3. **Threshold is disabled** (`enabled` set to 0)
+
+To re-enable monitoring, you must delete and recreate the threshold. This prevents:
+- Repeated relay cycling if consumption stays high
+- Nuisance shutoffs without user acknowledgment
+- Unintended behavior during high-load periods
+
+The user must actively address the high consumption before re-enabling automated monitoring.
+
+### All Energy Readings Are Stored
+Every energy reading from ESP32 devices is stored in the database without deduplication or filtering. This approach:
+- Preserves complete historical data for analysis
+- Allows accurate consumption calculations using `MAX(energy_kwh) - MIN(energy_kwh)`
+- Enables detailed usage pattern analysis
+- PZEM readings are cumulative (always increasing), so duplicates don't affect calculations
+
+---
 
 ## Development Status
 

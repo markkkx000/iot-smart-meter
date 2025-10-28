@@ -80,7 +80,7 @@ class SmartMeterScheduler:
                 trigger=CronTrigger(
                     hour=on_time.hour, 
                     minute=on_time.minute,
-                    day_of_week=days  # Add this parameter
+                    day_of_week=days
                 ),
                 args=[client_id, schedule_id],
                 id=f'schedule_{schedule_id}_on',
@@ -93,7 +93,7 @@ class SmartMeterScheduler:
                 trigger=CronTrigger(
                     hour=off_time.hour, 
                     minute=off_time.minute,
-                    day_of_week=days  # Add this parameter
+                    day_of_week=days
                 ),
                 args=[client_id, schedule_id],
                 id=f'schedule_{schedule_id}_off',

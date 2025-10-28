@@ -4,6 +4,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import logging
 import subprocess
+import os
 from database import Database
 from datetime import datetime, timedelta
 
@@ -15,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("scheduler-api")
 
 # Initialize database
-db = Database('/home/sabado/smart_meter/scheduler.db')
+db = Database(f"{os.getenv('HOME')}/smart_meter/scheduler.db")
 
 def restart_scheduler():
     """Restart the scheduler service to reload jobs"""

@@ -59,12 +59,6 @@ class MQTTSchedulerClient:
             except ValueError:
                 log.error(f"Invalid energy value: {payload}")
 
-    def subscribe_to_configs(self):
-        """Subscribe to configuration topics (future use)"""
-        # For future: listen to schedule config commands from Android app
-        self.client.subscribe("scheduler/+/schedule/add")
-        self.client.subscribe("scheduler/+/threshold/set")
-
     def publish_relay_command(self, client_id, command):
         """
         Publish relay command to ESP32

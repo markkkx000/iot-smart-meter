@@ -3,6 +3,7 @@
 import logging
 import signal
 import sys
+import os
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
@@ -18,15 +19,12 @@ log = logging.getLogger("smart-meter-scheduler")
 
 class SmartMeterScheduler:
     def __init__(self):
-        self.db = Database('/home/sabado/smart_meter/scheduler.db')
+        self.db = Database(f"{os.getenv('HOME')}/smart_meter/scheduler.db")
         self.mqtt = MQTTSchedulerClient('localhost', 1883)
         self.scheduler = BackgroundScheduler()
 
         # Subscribe to energy readings for threshold monitoring
         self.mqtt.on_energy_reading = self.handle_energy_reading
-
-        # Subscribe to configuration topics
-        self.mqtt.subscribe_to_configs()
 
     def start(self):
         """Initialize and start all services"""

@@ -117,14 +117,14 @@ def create_schedule():
                     'error': 'Daily schedules require start_time and end_time'
                 }), 400
 
-                try:
-                    datetime.strptime(data['start_time'], '%H:%M')
-                    datetime.strptime(data['end_time'], '%H:%M')
-                except ValueError:
-                    return jsonify({
-                        'success': False, 
-                        'error': 'Invalid time format. Use HH:MM (e.g., "08:30")'
-                    }), 400
+            try:
+                datetime.strptime(data['start_time'], '%H:%M')
+                datetime.strptime(data['end_time'], '%H:%M')
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid time format. Use HH:MM (e.g., "08:30")'
+                }), 400
 
         if schedule_type == 'timer':
             if 'duration_seconds' not in data:

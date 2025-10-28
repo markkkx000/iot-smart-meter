@@ -58,62 +58,62 @@ class SmartMeterScheduler:
             self.add_schedule_job(schedule)
 
     def add_schedule_job(self, schedule):
-    """Add a schedule to APScheduler"""
-    client_id = schedule['client_id']
-    schedule_id = schedule['id']
+        """Add a schedule to APScheduler"""
+        client_id = schedule['client_id']
+        schedule_id = schedule['id']
 
-    if schedule['schedule_type'] == 'daily':
-        # Daily recurring schedule
-        on_time = datetime.strptime(schedule['start_time'], '%H:%M').time()
-        off_time = datetime.strptime(schedule['end_time'], '%H:%M').time()
+        if schedule['schedule_type'] == 'daily':
+            # Daily recurring schedule
+            on_time = datetime.strptime(schedule['start_time'], '%H:%M').time()
+            off_time = datetime.strptime(schedule['end_time'], '%H:%M').time()
 
-        # Parse days_of_week (e.g., "1,2,3,4,5" for Mon-Fri)
-        # If not specified, default to all days (0-6)
-        if schedule['days_of_week']:
-            days = schedule['days_of_week']  # Already stored as string "0,1,2,3,4,5,6"
-        else:
-            days = None  # All days
+            # Parse days_of_week (e.g., "1,2,3,4,5" for Mon-Fri)
+            # If not specified, default to all days (0-6)
+            if schedule['days_of_week']:
+                days = schedule['days_of_week']  # Already stored as string "0,1,2,3,4,5,6"
+            else:
+                days = None  # All days
 
-        # Schedule ON
-        self.scheduler.add_job(
-            self.turn_relay_on,
-            trigger=CronTrigger(
-                hour=on_time.hour, 
-                minute=on_time.minute,
-                day_of_week=days  # Add this parameter
-            ),
-            args=[client_id, schedule_id],
-            id=f'schedule_{schedule_id}_on',
-            replace_existing=True
-        )
+            # Schedule ON
+            self.scheduler.add_job(
+                self.turn_relay_on,
+                trigger=CronTrigger(
+                    hour=on_time.hour, 
+                    minute=on_time.minute,
+                    day_of_week=days  # Add this parameter
+                ),
+                args=[client_id, schedule_id],
+                id=f'schedule_{schedule_id}_on',
+                replace_existing=True
+            )
 
-        # Schedule OFF
-        self.scheduler.add_job(
-            self.turn_relay_off,
-            trigger=CronTrigger(
-                hour=off_time.hour, 
-                minute=off_time.minute,
-                day_of_week=days  # Add this parameter
-            ),
-            args=[client_id, schedule_id],
-            id=f'schedule_{schedule_id}_off',
-            replace_existing=True
-        )
+            # Schedule OFF
+            self.scheduler.add_job(
+                self.turn_relay_off,
+                trigger=CronTrigger(
+                    hour=off_time.hour, 
+                    minute=off_time.minute,
+                    day_of_week=days  # Add this parameter
+                ),
+                args=[client_id, schedule_id],
+                id=f'schedule_{schedule_id}_off',
+                replace_existing=True
+            )
 
-        log.info(f"Added daily schedule for {client_id}: {on_time} - {off_time}, days: {days or 'all'}")
+            log.info(f"Added daily schedule for {client_id}: {on_time} - {off_time}, days: {days or 'all'}")
 
-    elif schedule['schedule_type'] == 'timer':
-        # Timer: turn OFF after duration_seconds
-        run_time = datetime.now() + timedelta(seconds=schedule['duration_seconds'])
-        self.scheduler.add_job(
-            self.turn_relay_off,
-            trigger=DateTrigger(run_date=run_time),
-            args=[client_id, schedule_id],
-            id=f'timer_{schedule_id}',
-            replace_existing=True
-        )
+        elif schedule['schedule_type'] == 'timer':
+            # Timer: turn OFF after duration_seconds
+            run_time = datetime.now() + timedelta(seconds=schedule['duration_seconds'])
+            self.scheduler.add_job(
+                self.turn_relay_off,
+                trigger=DateTrigger(run_date=run_time),
+                args=[client_id, schedule_id],
+                id=f'timer_{schedule_id}',
+                replace_existing=True
+            )
 
-        log.info(f"Added timer for {client_id}: {schedule['duration_seconds']}s")
+            log.info(f"Added timer for {client_id}: {schedule['duration_seconds']}s")
 
     def turn_relay_on(self, client_id, schedule_id):
         """Turn relay ON via MQTT"""

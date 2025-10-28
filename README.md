@@ -19,10 +19,10 @@ A distributed energy monitoring system built with ESP32 microcontrollers, Raspbe
 ### ESP32 Energy Meter Node
 - Measures voltage, current, power, and energy consumption using PZEM-004T v3.0 sensor
 - Controls relay (GPIO 4) for remote switching of connected appliances
-- Publishes telemetry data to MQTT broker at configurable intervals:
-  - Real-time metrics (voltage, current, power): every 3 seconds
-  - Cumulative energy readings: every 60 seconds
-  - Heartbeat messages: every 30 seconds
+- Publishes telemetry data to MQTT broker at configurable intervals (defaults shown):
+  - Real-time metrics (voltage, current, power): every 5 seconds (5000 ms)
+  - Cumulative energy readings: every 60 seconds (60000 ms)
+  - Heartbeat messages: every 30 seconds (30000 ms)
 - Supports remote configuration via MQTT (adjust reporting intervals)
 - WiFi provisioning via captive portal (WiFiManager)
 - Automatic reconnection with mDNS support for broker discovery
@@ -30,7 +30,7 @@ A distributed energy monitoring system built with ESP32 microcontrollers, Raspbe
 
 **Topics:**
 - `dev/<CLIENT_ID>/pzem/metrics` - Real-time voltage/current/power (JSON)
-- `dev/<CLIENT_ID>/pzem/energy` - Cumulative energy consumption
+- `dev/<CLIENT_ID>/pzem/energy` - Cumulative energy consumption (retained)
 - `dev/<CLIENT_ID>/relay/state` - Relay status (0/1)
 - `dev/<CLIENT_ID>/relay/commands` - Relay control (RELAY_ON/RELAY_OFF)
 - `dev/<CLIENT_ID>/pzem/config` - Configuration updates (JSON)
@@ -54,6 +54,47 @@ A distributed energy monitoring system built with ESP32 microcontrollers, Raspbe
 - Supports Android, iOS, and Windows captive portal detection
 - After successful connection, reboots and connects to configured network
 
+### Raspberry Pi Smart Meter Service (new)
+A new smart_meter component is included under `Raspberry_Pi/home/sabado/smart_meter` (added in recent commits). This component runs on the Raspberry Pi and provides the following features:
+
+- Scheduling: configurable measurement/processing schedules and automated tasks
+- Thresholds & Alerts: user-configurable thresholds for power/energy values and triggers for alerts or relay actions
+- REST API: simple HTTP API for querying recent measurements, status, and for issuing control commands
+- SQLite database: stores metrics and events locally in an SQLite database for historical data and offline operation
+- Systemd services: service unit files are provided under `Raspberry_Pi/etc/systemd/system/` to run the smart_meter components (API, scheduler, and worker services). Copy these service files to `/etc/systemd/system/` and enable them to run at boot.
+
+Suggested deployment steps (on the Pi):
+
+1. Copy smart_meter application files:
+```bash
+sudo cp -r Raspberry_Pi/home/sabado/smart_meter /home/sabado/
+sudo chown -R sabado:sabado /home/sabado/smart_meter
+```
+
+2. Install Python dependencies (if the component is Python-based):
+```bash
+cd /home/sabado/smart_meter
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+3. Install systemd service files and enable services:
+```bash
+sudo cp Raspberry_Pi/etc/systemd/system/smart_meter*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now smart_meter.service
+# enable any additional smart_meter-* services provided
+```
+
+4. Check service status and logs:
+```bash
+sudo systemctl status smart_meter.service
+sudo journalctl -u smart_meter.service -f
+```
+
+Note: adjust service names above to match the exact unit filenames present in `Raspberry_Pi/etc/systemd/system/`.
+
 ### Android Application
 *(In development)*
 - Real-time dashboard with energy consumption graphs
@@ -66,7 +107,7 @@ A distributed energy monitoring system built with ESP32 microcontrollers, Raspbe
 ### ESP32 Node
 - ESP32 development board
 - PZEM-004T v3.0/v4.0 energy meter module
-- Relay module (active-LOW, connected to GPIO 26)
+- Relay module (active-LOW, connected to GPIO 4)
 - 5V AC-DC power supply
 
 **Wiring:**
@@ -117,7 +158,7 @@ GND      -->   GND
 2. Install required packages:
 ```bash
 sudo apt update
-sudo apt install mosquitto mosquitto-clients python3-flask network-manager dnsmasq
+sudo apt install mosquitto mosquitto-clients python3-flask network-manager dnsmasq sqlite3
 ```
 
 3. Copy system files:
@@ -183,7 +224,7 @@ dev/
     └── pzem/
         ├── metrics        # {"voltage":220.5,"current":1.2,"power":264.6}
         ├── energy         # Cumulative kWh (retained)
-        └── config         # {"metrics":5000,"energy":120000}
+        └── config         # {"metrics":5000,"energy":60000}
 ```
 
 **Wildcard Subscriptions for Multi-Device Monitoring:**
@@ -205,8 +246,8 @@ Each device maintains its own independent topics, ensuring status updates don't 
 Publish JSON to `dev/<CLIENT_ID>/pzem/config`:
 ```json
 {
-  "metrics": 5000,   // milliseconds between metrics updates
-  "energy": 120000   // milliseconds between energy updates
+  "metrics": 5000,   // milliseconds between metrics updates (default: 5000)
+  "energy": 60000    // milliseconds between energy updates (default: 60000)
 }
 ```
 
@@ -233,15 +274,16 @@ CHECK_TIMEOUT=15            # Seconds to wait for connection
 - ✅ Web-based WiFi management interface
 - ✅ Automatic hotspot recovery on failed connections
 - ✅ OLED status display for ESP32
+- ✅ Raspberry Pi smart_meter service (scheduling, thresholds, REST API, SQLite DB)
 
 ### In Progress
-- 🔄 Raspberry Pi data parsing and storage
+- 🔄 Raspberry Pi data parsing and storage (integration with smart_meter)
 - 🔄 ESP32 status callbacks on Pi
 - 🔄 Android application development
 
 ### Planned
 - 📋 Power-off handling (UPS integration or safe shutdown)
-- 📋 Historical data storage (InfluxDB/SQLite)
+- 📋 Historical data storage (InfluxDB/SQLite) — expand or migrate from local SQLite
 - 📋 Web dashboard for Raspberry Pi
 - 📋 Multi-node support and aggregation
 - 📋 Energy cost calculations
@@ -266,6 +308,10 @@ CHECK_TIMEOUT=15            # Seconds to wait for connection
 **Hotspot doesn't restart after wrong password:**
 - Check logs: `sudo journalctl -u captive-portal -n 50`
 - Manually restart: `sudo nmcli connection up Hotspot`
+
+## Changelog (recent README updates)
+- 6cda13c — Update README.md (metadata/formatting)
+- README updated to document the newly added Raspberry_Pi/home/sabado/smart_meter component (scheduling, thresholds, REST API, SQLite DB) and associated systemd services.
 
 ## License
 

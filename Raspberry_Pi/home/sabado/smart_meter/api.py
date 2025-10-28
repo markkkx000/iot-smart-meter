@@ -36,6 +36,7 @@ def restart_scheduler():
         log.error(f"Error during scheduler restart: {e}")
         return False
 
+
 # ============= SCHEDULES ENDPOINTS =============
 
 @app.route('/api/schedules', methods=['GET'])
@@ -115,6 +116,15 @@ def create_schedule():
                     'success': False,
                     'error': 'Daily schedules require start_time and end_time'
                 }), 400
+
+                try:
+                    datetime.strptime(data['start_time'], '%H:%M')
+                    datetime.strptime(data['end_time'], '%H:%M')
+                except ValueError:
+                    return jsonify({
+                        'success': False, 
+                        'error': 'Invalid time format. Use HH:MM (e.g., "08:30")'
+                    }), 400
 
         if schedule_type == 'timer':
             if 'duration_seconds' not in data:
@@ -201,8 +211,22 @@ def update_schedule(schedule_id):
         # Update only provided fields
         updated_fields = {}
         if 'start_time' in data:
+            try:
+                datetime.strptime(data['start_time'], '%H:%M')
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid start_time format. Use HH:MM'
+                }), 400
             updated_fields['start_time'] = data['start_time']
         if 'end_time' in data:
+            try:
+                datetime.strptime(data['end_time'], '%H:%M')
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid end_time format. Use HH:MM'
+                }), 400
             updated_fields['end_time'] = data['end_time']
         if 'duration_seconds' in data:
             updated_fields['duration_seconds'] = data['duration_seconds']

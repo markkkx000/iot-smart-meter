@@ -102,6 +102,19 @@ class SmartMeterScheduler:
 
         log.info(f"Added daily schedule for {client_id}: {on_time} - {off_time}, days: {days or 'all'}")
 
+    elif schedule['schedule_type'] == 'timer':
+        # Timer: turn OFF after duration_seconds
+        run_time = datetime.now() + timedelta(seconds=schedule['duration_seconds'])
+        self.scheduler.add_job(
+            self.turn_relay_off,
+            trigger=DateTrigger(run_date=run_time),
+            args=[client_id, schedule_id],
+            id=f'timer_{schedule_id}',
+            replace_existing=True
+        )
+
+        log.info(f"Added timer for {client_id}: {schedule['duration_seconds']}s")
+
     def turn_relay_on(self, client_id, schedule_id):
         """Turn relay ON via MQTT"""
         log.info(f"Schedule {schedule_id}: Turning ON relay for {client_id}")

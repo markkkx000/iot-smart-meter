@@ -2,6 +2,28 @@
 
 A distributed energy monitoring and automation system built with ESP32 microcontrollers, Raspberry Pi, and MQTT for real-time power consumption tracking, remote appliance control, and automated scheduling.
 
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Components](#components)
+  - [ESP32 Energy Meter Node](#esp32-energy-meter-node)
+  - [Raspberry Pi MQTT Broker & Automation Hub](#raspberry-pi-mqtt-broker--automation-hub)
+  - [Android Application](#android-application)
+- [Hardware Requirements](#hardware-requirements)
+- [Software Setup](#software-setup)
+  - [ESP32 Setup](#esp32)
+  - [Raspberry Pi Setup](#raspberry-pi)
+- [MQTT Topic Structure](#mqtt-topic-structure)
+- [REST API Documentation](#rest-api-documentation)
+- [Configuration](#configuration)
+- [Database Schema](#database-schema)
+- [Design Decisions](#design-decisions)
+- [Development Status](#development-status)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+- [Contributing](#contributing)
+- [Acknowledgments](#acknowledgments)
+
 ## Architecture
 
 ```
@@ -26,14 +48,16 @@ A distributed energy monitoring and automation system built with ESP32 microcont
   - WiFi and MQTT connectivity
   - Real-time power consumption
   - Relay state (ON/OFF)
+  - IP address when connected
 - Publishes telemetry data to MQTT broker at configurable intervals:
-  - Real-time metrics (voltage, current, power): every 3 seconds
-  - Cumulative energy readings: every 60 seconds
+  - Real-time metrics (voltage, current, power): every 3 seconds (default)
+  - Cumulative energy readings: every 60 seconds (default)
   - Heartbeat messages: every 30 seconds
 - Supports remote configuration via MQTT (adjust reporting intervals)
 - WiFi provisioning via captive portal (WiFiManager)
 - Automatic reconnection with mDNS support for broker discovery
 - Factory reset via BOOT button (GPIO 0)
+- WiFi event handling for connection state tracking
 
 **MQTT Topics (Published):**
 - `dev/<CLIENT_ID>/pzem/metrics` - Real-time voltage/current/power (JSON)
@@ -44,6 +68,7 @@ A distributed energy monitoring and automation system built with ESP32 microcont
 
 **MQTT Topics (Subscribed):**
 - `dev/<CLIENT_ID>/relay/commands` - Relay control (RELAY_ON/RELAY_OFF)
+- `dev/<CLIENT_ID>/relay/state` - Relay state synchronization
 - `dev/<CLIENT_ID>/pzem/config` - Configuration updates (JSON)
 
 ### Raspberry Pi MQTT Broker & Automation Hub
@@ -62,6 +87,7 @@ A distributed energy monitoring and automation system built with ESP32 microcont
   - Visual signal strength indicators
   - Automatic password validation with retry
   - Auto-restart hotspot on failed connection attempts
+  - Support for both secured and open networks
 
 **WiFi Fallback Mechanism:**
 - On boot, checks for network connectivity (15-second timeout)
@@ -69,37 +95,41 @@ A distributed energy monitoring and automation system built with ESP32 microcont
 - Launches captive portal on `192.168.4.1` for configuration
 - Supports Android, iOS, and Windows captive portal detection
 - After successful connection, reboots and connects to configured network
+- Ethernet connection bypasses WiFi fallback
 
 #### 3. Smart Meter Scheduler Service
 - Automated relay control based on schedules and energy thresholds
 - Monitors energy consumption from all ESP32 devices
 - Stores historical data in SQLite database
-- APScheduler-based job execution
+- APScheduler-based job execution with background scheduling
 
 **Features:**
 - **Daily Schedules**: Turn relays ON/OFF at specific times (recurring)
-  - Supports day-of-week filtering (e.g., weekdays only: "1,2,3,4,5")
+  - Supports day-of-week filtering (e.g., weekdays only: "0,1,2,3,4")
   - APScheduler format: 0=Monday, 6=Sunday
-  - If not specified, runs every day
+  - If days_of_week not specified, runs every day
+  - Separate ON and OFF cron jobs
 - **Timer Schedules**: One-time countdown timers for temporary operations
   - Starts immediately upon creation
   - Automatically turns relay OFF after specified duration
-  - Self-deletes after execution
+  - Self-deletes after execution using DateTrigger
 - **Energy Thresholds**: Auto-shutoff when consumption exceeds limits
   - Daily, weekly, or monthly reset periods
   - Automatic relay disconnect on threshold breach
-  - Alert notifications via MQTT
+  - Alert notifications via MQTT (retained messages)
   - Must be manually re-enabled after triggering (prevents repeated shutoffs)
+  - Threshold monitoring runs every 60 seconds
 - **Schedule Management**: Create, update, and delete schedules via REST API
   - Partial updates supported (modify only specific fields)
   - Time format validation (HH:MM)
-  - Automatic scheduler restart on changes
+  - Automatic scheduler service restart on changes (via systemctl)
 
 #### 4. REST API Service
 - Flask-based API for Android app integration
 - Manages schedules, thresholds, and energy data
 - CORS-enabled for cross-origin requests
 - Runs on port 5001
+- Includes health check endpoint
 
 ### Android Application
 *(In development)*
@@ -115,9 +145,9 @@ A distributed energy monitoring and automation system built with ESP32 microcont
 
 ### ESP32 Node
 - ESP32 development board
-- PZEM-004T v3.0/v4.0 energy meter module
+- PZEM-004T v3.0 energy meter module
 - Relay module (active-LOW, connected to GPIO 4)
-- SH1106 128x64 OLED display (I2C)
+- SH1106 128x64 OLED display (I2C, address 0x3C)
 - 5V AC-DC power supply
 
 **Wiring:**
@@ -141,6 +171,8 @@ SDA      <->   GPIO 22
 SCL      <->   GPIO 23
 VCC      -->   3.3V
 GND      -->   GND
+
+BOOT Button    GPIO 0 (built-in, for factory reset)
 ```
 
 ### Raspberry Pi
@@ -162,7 +194,15 @@ GND      -->   GND
 
 2. **Configure and upload sketch:**
    - Open `ESP32/sketch_sep4a/sketch_sep4a.ino`
-   - Verify GPIO pins match your hardware
+   - Verify GPIO pins match your hardware:
+     ```cpp
+     #define RESET_PIN 0       // BOOT button
+     #define RELAY_PIN 4
+     #define PZEM_RX 16
+     #define PZEM_TX 17
+     #define OLED_SDA 22
+     #define OLED_SCL 23
+     ```
    - Upload to ESP32
 
 3. **Initial WiFi Configuration:**
@@ -174,7 +214,7 @@ GND      -->   GND
    - Set MQTT port: `1883`
 
 4. **Verify Operation:**
-   - OLED should show "Connected" status
+   - OLED should show "Connected" status with IP address
    - Device publishes to MQTT broker
    - Check serial monitor at 115200 baud for logs
 
@@ -252,9 +292,6 @@ cp -r Raspberry_Pi/home/sabado/captive_portal/* /home/$USER/captive_portal/
 
 # Copy smart meter scheduler and API
 cp -r Raspberry_Pi/home/sabado/smart_meter/* /home/$USER/smart_meter/
-
-# Update database paths in Python files
-sed -i "s|/home/sabado/smart_meter|/home/$USER/smart_meter|g" /home/$USER/smart_meter/*.py
 ```
 
 **Note:** Update service files to use your username instead of `sabado`:
@@ -264,7 +301,26 @@ sudo sed -i "s|/home/sabado|/home/$USER|g" /etc/systemd/system/smart-meter-*.ser
 sudo sed -i "s|User=sabado|User=$USER|g" /etc/systemd/system/smart-meter-*.service
 ```
 
-#### 5. Enable and Start Services
+#### 5. Configure Passwordless Sudo for Service Management
+
+The REST API needs to restart the scheduler service when schedules are modified. Configure passwordless sudo access:
+
+```bash
+# Allow user to manage smart-meter-scheduler service without password
+echo "$USER ALL=(ALL) NOPASSWD: /bin/systemctl restart smart-meter-scheduler.service" | sudo tee /etc/sudoers.d/smart-meter-scheduler
+echo "$USER ALL=(ALL) NOPASSWD: /bin/systemctl start smart-meter-scheduler.service" | sudo tee -a /etc/sudoers.d/smart-meter-scheduler
+echo "$USER ALL=(ALL) NOPASSWD: /bin/systemctl stop smart-meter-scheduler.service" | sudo tee -a /etc/sudoers.d/smart-meter-scheduler
+
+# Set proper permissions (sudoers files must be 0440)
+sudo chmod 0440 /etc/sudoers.d/smart-meter-scheduler
+
+# Verify the configuration
+sudo visudo -c
+```
+
+**Important:** This allows the API service to restart the scheduler without prompting for a password, enabling automatic schedule updates.
+
+#### 6. Enable and Start Services
 
 ```bash
 # Reload systemd to recognize new services
@@ -291,7 +347,7 @@ sudo systemctl status smart-meter-api
 
 **Note:** `wifi-fallback` and `captive-portal` will start automatically only when needed (no WiFi connection at boot).
 
-#### 6. Initial WiFi Connection
+#### 7. Initial WiFi Connection
 
 If Pi doesn't connect to a saved network on reboot, it will automatically:
 1. Create `Pi_AP` hotspot (SSID: `Pi_AP`, Password: `12345678`)
@@ -299,7 +355,7 @@ If Pi doesn't connect to a saved network on reboot, it will automatically:
 3. Connect to `Pi_AP` and configure WiFi through the web interface
 4. Pi reboots and connects to your network
 
-#### 7. Verify Installation
+#### 8. Verify Installation
 
 ```bash
 # Check if MQTT broker is running
@@ -375,7 +431,7 @@ Check if API is running.
 
 **GET** `/api/devices`
 
-Returns list of all known ESP32 devices.
+Returns list of all known ESP32 devices based on energy readings.
 
 **Response:**
 ```json
@@ -412,6 +468,7 @@ Returns all schedules across all devices.
       "schedule_type": "daily",
       "start_time": "08:00",
       "end_time": "20:00",
+      "days_of_week": "0,1,2,3,4",
       "enabled": 1,
       "created_at": "2025-10-30 10:00:00"
     }
@@ -451,9 +508,17 @@ Create a new schedule.
   "schedule_type": "daily",
   "start_time": "08:00",
   "end_time": "20:00",
-  "days_of_week": "0,1,2,3,4"  // Optional: 0=Mon, 6=Sun (e.g., "0,1,2,3,4" = Mon-Fri)
+  "days_of_week": "0,1,2,3,4"  // Optional: 0=Mon, 6=Sun
 }
 ```
+
+**Days of Week Format:**
+- Uses APScheduler convention: 0=Monday, 6=Sunday
+- Examples:
+  - Monday-Friday: `"0,1,2,3,4"`
+  - Weekends only: `"5,6"`
+  - Tuesday/Thursday: `"1,3"`
+  - All days: Omit field or set to `null`
 
 **Request Body (Timer Schedule):**
 ```json
@@ -485,10 +550,10 @@ Update an existing schedule. All fields are optional - only provided fields will
 **Request Body:**
 ```json
 {
-  "start_time": "09:00",          // Optional - Update start time
-  "end_time": "21:00",            // Optional - Update end time
-  "duration_seconds": 7200,     // Optional - Update timer duration
-  "days_of_week": "5,6"       // Optional - Update days (0=Mon, 6=Sun)
+  "start_time": "09:00",
+  "end_time": "21:00",
+  "duration_seconds": 7200,
+  "days_of_week": "5,6"
 }
 ```
 
@@ -506,7 +571,7 @@ Update an existing schedule. All fields are optional - only provided fields will
 - Time format must be HH:MM (24-hour format)
 - For daily schedules: Can update start_time, end_time, and days_of_week
 - For timer schedules: Can update duration_seconds
-- Scheduler service automatically restarts to apply changes
+- Scheduler service automatically restarts via systemctl to apply changes
 
 ---
 
@@ -545,7 +610,8 @@ Get energy threshold for a specific device.
     "limit_kwh": 5.0,
     "reset_period": "daily",
     "enabled": 1,
-    "last_reset": "2025-10-30 00:00:00"
+    "last_reset": "2025-10-30 00:00:00",
+    "created_at": "2025-10-30 10:00:00"
   }
 }
 ```
@@ -578,6 +644,7 @@ Set or update energy threshold for a device.
 - When consumption exceeds `limit_kwh`, relay automatically turns OFF
 - Threshold is disabled after triggering to prevent repeated shutoffs
 - **Must be manually re-enabled** by deleting and recreating the threshold
+- Alert published to `dev/<CLIENT_ID>/threshold/alert` (retained)
 - This design prevents the relay from repeatedly cycling if consumption remains high
 - Reset periods determine when consumption calculation starts:
   - `daily` - Resets at midnight (00:00)
@@ -606,9 +673,9 @@ Remove energy threshold for a device.
 
 #### Get Energy Readings
 
-**GET** `/api/energy/<client_id>?limit=100`
+**GET** `/api/energy/<client_id>?limit=100&period=day`
 
-Get recent energy readings for a device.
+Get energy readings or consumption for a device.
 
 **Query Parameters:**
 - `limit` (optional): Number of readings to return (default: 100)
@@ -678,13 +745,18 @@ mosquitto_pub -h mqttpi.local -t "dev/ESP32-fa641d44/pzem/config" \
   -m '{"metrics":5000,"energy":120000}'
 ```
 
+Configuration is saved to ESP32 Preferences and persists across reboots.
+
 ### Customize WiFi Fallback
 
 Edit `/etc/default/wifi-fallback`:
 ```bash
-HOTSPOT_SSID="Pi_AP"        # AP name
-HOTSPOT_PASS="12345678"     # AP password
-CHECK_TIMEOUT=15            # Seconds to wait for WiFi connection
+HOTSPOT_NAME="Hotspot"        # NetworkManager connection name
+HOTSPOT_SSID="Pi_AP"          # AP SSID
+HOTSPOT_PASS="12345678"       # AP password
+WIFI_INTERFACE="wlan0"        # WiFi interface
+ETH_INTERFACE="eth0"          # Ethernet interface
+CHECK_TIMEOUT=15              # Seconds to wait for WiFi connection
 ```
 
 After editing:
@@ -722,7 +794,7 @@ The scheduler uses SQLite database at `/home/<user>/smart_meter/scheduler.db`.
 - `start_time` - Daily schedule start time (HH:MM format, 24-hour)
 - `end_time` - Daily schedule end time (HH:MM format, 24-hour)
 - `duration_seconds` - Timer duration (only for timer type)
-- `days_of_week` - Comma-separated days for daily schedules (0=Mon, 6=Sun, e.g., "0,1,2,3,4" for weekdays)
+- `days_of_week` - Comma-separated days (0=Mon, 6=Sun, e.g., "0,1,2,3,4")
 - `enabled` - Active status (1/0)
 - `created_at` - Creation timestamp
 
@@ -759,6 +831,10 @@ sqlite3 /home/$USER/smart_meter/scheduler.db \
 
 # Check threshold status
 sqlite3 /home/$USER/smart_meter/scheduler.db "SELECT * FROM thresholds;"
+
+# View schedule execution log
+sqlite3 /home/$USER/smart_meter/scheduler.db \
+  "SELECT * FROM schedule_log ORDER BY executed_at DESC LIMIT 20;"
 ```
 
 ## Design Decisions
@@ -767,7 +843,8 @@ sqlite3 /home/$USER/smart_meter/scheduler.db "SELECT * FROM thresholds;"
 Timer schedules (`schedule_type: "timer"`) are designed for immediate countdown operations. When created, they:
 - Start counting down from the moment of creation
 - Turn the relay OFF after `duration_seconds` expires
-- Automatically delete themselves after execution
+- Automatically delete themselves from the database after execution
+- Use APScheduler's DateTrigger for one-time execution
 
 **Use case:** "Turn off the device in 2 hours from now"
 
@@ -775,8 +852,8 @@ For scheduled future actions at specific times, use daily schedules instead.
 
 ### Thresholds Require Manual Re-enablement
 When an energy threshold is exceeded:
-1. Relay automatically turns OFF
-2. Alert is published to MQTT topic `dev/<CLIENT_ID>/threshold/alert`
+1. Relay automatically turns OFF via MQTT command
+2. Alert is published to `dev/<CLIENT_ID>/threshold/alert` (retained)
 3. **Threshold is disabled** (`enabled` set to 0)
 
 To re-enable monitoring, you must delete and recreate the threshold. This prevents:
@@ -793,6 +870,39 @@ Every energy reading from ESP32 devices is stored in the database without dedupl
 - Enables detailed usage pattern analysis
 - PZEM readings are cumulative (always increasing), so duplicates don't affect calculations
 
+### Relay State Synchronization
+The ESP32 subscribes to both:
+- `dev/<CLIENT_ID>/relay/commands` - For command execution (RELAY_ON/RELAY_OFF)
+- `dev/<CLIENT_ID>/relay/state` - For state synchronization across devices
+
+This dual-subscription allows the ESP32 to:
+- Execute commands from the scheduler/API
+- Synchronize with retained state when reconnecting
+- Maintain consistent state across MQTT clients
+
+### WiFi Event-Driven Status Updates
+The ESP32 uses WiFi event handlers to update connection status:
+- `WiFiStationConnected` - Triggered when AP connection succeeds
+- `WiFiGotIP` - Updates status when IP address is obtained
+- `WiFiStationDisconnected` - Handles disconnections and auto-reconnect
+
+This ensures the OLED display and MQTT status accurately reflect network state.
+
+### Captive Portal Network Detection
+The captive portal handles open networks (no password) differently:
+- Detects if network security is "Open" or empty
+- Hides password field for open networks
+- Two-step connection process: create profile, then activate
+- Automatic hotspot restart on failed connection attempts
+- Validates connection for 10 seconds before considering it successful
+
+### Scheduler Service Restart on Changes
+The API automatically restarts the scheduler service (`smart-meter-scheduler.service`) using systemctl when schedules are created, updated, or deleted. This ensures:
+- APScheduler reloads all jobs from the database
+- Changes take effect immediately
+- No manual intervention required
+- Graceful restart with minimal downtime
+
 ---
 
 ## Development Status
@@ -801,18 +911,24 @@ Every energy reading from ESP32 devices is stored in the database without dedupl
 - ✅ ESP32 WiFi and MQTT reconnection with mDNS
 - ✅ PZEM-004T energy monitoring (voltage, current, power, energy)
 - ✅ MQTT telemetry publishing with configurable intervals
-- ✅ Relay control via MQTT commands
-- ✅ Device heartbeat and status reporting
-- ✅ OLED status display for ESP32
+- ✅ Relay control via MQTT commands and state synchronization
+- ✅ Device heartbeat and status reporting with LWT
+- ✅ OLED status display with connection info and IP address
+- ✅ WiFi event-driven status updates
+- ✅ Configuration persistence (Preferences library)
 - ✅ Raspberry Pi MQTT broker setup (Mosquitto)
-- ✅ WiFi fallback with captive portal
-- ✅ Web-based WiFi management interface
+- ✅ WiFi fallback with captive portal and ethernet detection
+- ✅ Web-based WiFi management interface with open network support
 - ✅ Automatic hotspot recovery on failed connections
-- ✅ Smart meter scheduler service
-- ✅ Daily and timer-based schedules
-- ✅ Energy consumption thresholds
-- ✅ REST API for remote management
+- ✅ Smart meter scheduler service with APScheduler
+- ✅ Daily schedules with day-of-week filtering
+- ✅ Timer-based schedules with automatic cleanup
+- ✅ Energy consumption thresholds with auto-disable
+- ✅ REST API for remote management with CORS
 - ✅ SQLite database for historical data
+- ✅ Schedule update endpoint with partial updates
+- ✅ Automatic scheduler restart on API changes
+- ✅ Threshold alert publishing (retained MQTT messages)
 
 ### In Progress
 - 🔄 Android application development
@@ -830,6 +946,7 @@ Every energy reading from ESP32 devices is stored in the database without dedupl
 - 📋 Multi-level user authentication for API
 - 📋 Schedule templates and presets
 - 📋 Energy consumption analytics and insights
+- 📋 MQTT authentication support
 
 ## Troubleshooting
 
@@ -840,22 +957,33 @@ Every energy reading from ESP32 devices is stored in the database without dedupl
 - Connect to `ESP32_AP` and reconfigure
 - Check if WiFi credentials are correct
 - Verify WiFi network is 2.4GHz (ESP32 doesn't support 5GHz)
+- Check serial monitor for detailed error messages
 
 **OLED display not working:**
 - Verify I2C wiring (SDA=GPIO22, SCL=GPIO23)
-- Check OLED I2C address (default: 0x3C)
+- Check OLED I2C address (default: 0x3C, shifted to 0x78 in code)
 - Test with I2C scanner sketch
+- Verify Wire.begin() is called with correct pins
 
 **PZEM sensor not reading:**
-- Verify TX/RX connections (TX→GPIO16, RX→GPIO17)
+- Verify TX/RX connections (PZEM TX→GPIO16, PZEM RX→GPIO17)
 - Check PZEM power supply (5V)
 - Ensure PZEM is properly connected to AC load
+- Check serial2 baud rate (9600 for PZEM-004T v3.0)
+- Monitor serial output for NaN values
 
 **ESP32 can't find MQTT broker:**
 - Verify Pi hostname: `avahi-browse -a | grep mqttpi`
 - Try using Pi's IP address instead of `mqttpi.local`
 - Check Mosquitto: `sudo systemctl status mosquitto`
 - Test MQTT: `mosquitto_sub -h mqttpi.local -t '#' -v`
+- Check mDNS resolution logs in serial monitor
+
+**Display shows wrong status:**
+- Check WiFi event handlers are properly registered
+- Verify display update interval (1 second default)
+- Check if status strings are being updated in event callbacks
+- Monitor serial output for connection state changes
 
 ### Raspberry Pi Issues
 
@@ -864,23 +992,51 @@ Every energy reading from ESP32 devices is stored in the database without dedupl
 - Manually navigate to `http://192.168.4.1` in browser
 - Verify captive portal service: `sudo systemctl status captive-portal`
 - Check logs: `sudo journalctl -u captive-portal -n 50`
+- Ensure dnsmasq configuration is correct
 
 **Hotspot doesn't restart after wrong password:**
 - Check logs: `sudo journalctl -u captive-portal -f`
 - Manually restart: `sudo nmcli connection up Hotspot`
 - Verify wifi-fallback script: `sudo systemctl status wifi-fallback`
+- Check NetworkManager connection profiles: `nmcli connection show`
+
+**Captive portal can't connect to open networks:**
+- Verify password field is hidden for open networks
+- Check JavaScript network selection logic
+- Monitor Flask logs for connection attempts
+- Ensure security field is properly detected
 
 **Scheduler not executing jobs:**
 - Check scheduler logs: `sudo journalctl -u smart-meter-scheduler -f`
 - Verify schedules in database: `sqlite3 /home/$USER/smart_meter/scheduler.db "SELECT * FROM schedules;"`
 - Restart scheduler: `sudo systemctl restart smart-meter-scheduler`
 - Check MQTT connectivity: `mosquitto_sub -h localhost -t 'dev/#' -v`
+- Verify APScheduler jobs: Look for "Added daily schedule" or "Added timer" in logs
+
+**Timer schedules not working:**
+- Verify `duration_seconds` is set correctly
+- Check DateTrigger execution time in logs
+- Ensure schedule is created successfully in database
+- Monitor for automatic deletion after execution
+
+**Daily schedules not respecting days_of_week:**
+- Verify days are formatted as comma-separated string: "0,1,2,3,4"
+- Check CronTrigger parameters in logs
+- Remember: 0=Monday, 6=Sunday (APScheduler convention)
+- If days_of_week is NULL, schedule runs every day
 
 **REST API not responding:**
 - Check API status: `sudo systemctl status smart-meter-api`
 - Test health endpoint: `curl http://localhost:5001/api/health`
 - View logs: `sudo journalctl -u smart-meter-api -n 50`
 - Verify port 5001 is not in use: `sudo netstat -tulpn | grep 5001`
+- Check CORS configuration if accessing from browser
+
+**Scheduler restart fails from API:**
+- Verify user has sudo privileges for systemctl
+- Check sudoers configuration for passwordless systemctl
+- Test manual restart: `sudo systemctl restart smart-meter-scheduler`
+- Review API logs for subprocess errors
 
 **Database errors:**
 - Check database permissions: `ls -l /home/$USER/smart_meter/scheduler.db`
@@ -893,11 +1049,25 @@ Every energy reading from ESP32 devices is stored in the database without dedupl
   python3 -c "from database import Database; Database('scheduler.db')"
   ```
 
+**Energy readings not being stored:**
+- Verify MQTT subscription to `dev/+/pzem/energy`
+- Check MQTT client connection in scheduler logs
+- Test MQTT publishing: `mosquitto_pub -h localhost -t "dev/ESP32-test/pzem/energy" -m "123.45"`
+- Query database: `sqlite3 /home/$USER/smart_meter/scheduler.db "SELECT * FROM energy_readings;"`
+
+**Threshold not triggering:**
+- Verify threshold is enabled: `SELECT * FROM thresholds WHERE enabled=1;`
+- Check consumption calculation in logs
+- Ensure period_start is calculated correctly
+- Monitor threshold check execution (every 60 seconds)
+- Verify relay OFF command is published
+
 **mDNS not working (`mqttpi.local` not resolving):**
 - Check Avahi daemon: `sudo systemctl status avahi-daemon`
 - Restart Avahi: `sudo systemctl restart avahi-daemon`
 - Test resolution: `avahi-resolve -n mqttpi.local`
 - Use IP address as fallback: `hostname -I`
+- Check firewall rules for mDNS (port 5353 UDP)
 
 ### General Debugging
 
@@ -911,6 +1081,9 @@ sudo journalctl -u smart-meter-scheduler -n 100
 
 # Logs since last boot
 sudo journalctl -b -u captive-portal
+
+# Filter by error level
+sudo journalctl -u smart-meter-scheduler -p err
 ```
 
 **Check network connectivity:**
@@ -926,6 +1099,9 @@ nmcli connection show --active
 
 # MQTT broker connectivity
 mosquitto_sub -h localhost -t '$SYS/#' -v
+
+# Test mDNS
+avahi-browse -a
 ```
 
 **Test MQTT publishing:**
@@ -936,8 +1112,101 @@ mosquitto_pub -h mqttpi.local -t "dev/ESP32-fa641d44/relay/commands" -m "RELAY_O
 # Turn relay OFF
 mosquitto_pub -h mqttpi.local -t "dev/ESP32-fa641d44/relay/commands" -m "RELAY_OFF"
 
+# Update PZEM config
+mosquitto_pub -h mqttpi.local -t "dev/ESP32-fa641d44/pzem/config" \
+  -m '{"metrics":5000,"energy":120000}'
+
 # Subscribe to all topics
 mosquitto_sub -h mqttpi.local -t '#' -v
+
+# Subscribe to specific device
+mosquitto_sub -h mqttpi.local -t 'dev/ESP32-fa641d44/#' -v
+```
+
+**Test REST API:**
+```bash
+# Health check
+curl http://mqttpi.local:5001/api/health
+
+# Get all devices
+curl http://mqttpi.local:5001/api/devices
+
+# Get schedules for device
+curl http://mqttpi.local:5001/api/schedules/ESP32-fa641d44
+
+# Create daily schedule
+curl -X POST http://mqttpi.local:5001/api/schedules \
+  -H "Content-Type: application/json" \
+  -d '{"client_id":"ESP32-fa641d44","schedule_type":"daily","start_time":"08:00","end_time":"20:00","days_of_week":"0,1,2,3,4"}'
+
+# Create timer schedule
+curl -X POST http://mqttpi.local:5001/api/schedules \
+  -H "Content-Type: application/json" \
+  -d '{"client_id":"ESP32-fa641d44","schedule_type":"timer","duration_seconds":3600}'
+
+# Update schedule
+curl -X PUT http://mqttpi.local:5001/api/schedules/1 \
+  -H "Content-Type: application/json" \
+  -d '{"start_time":"09:00","end_time":"21:00"}'
+
+# Delete schedule
+curl -X DELETE http://mqttpi.local:5001/api/schedules/1
+
+# Set threshold
+curl -X PUT http://mqttpi.local:5001/api/thresholds/ESP32-fa641d44 \
+  -H "Content-Type: application/json" \
+  -d '{"limit_kwh":5.0,"reset_period":"daily"}'
+
+# Get energy data
+curl http://mqttpi.local:5001/api/energy/ESP32-fa641d44?limit=10
+curl http://mqttpi.local:5001/api/energy/ESP32-fa641d44?period=day
+```
+
+**Check database contents:**
+```bash
+# Open database
+sqlite3 /home/$USER/smart_meter/scheduler.db
+
+# Inside sqlite3 shell:
+.tables
+.schema schedules
+SELECT * FROM schedules;
+SELECT * FROM thresholds;
+SELECT * FROM energy_readings ORDER BY timestamp DESC LIMIT 10;
+SELECT * FROM schedule_log ORDER BY executed_at DESC LIMIT 20;
+.quit
+```
+
+**Monitor ESP32 serial output:**
+```bash
+# Using Arduino IDE Serial Monitor (115200 baud)
+# Or using screen:
+screen /dev/ttyUSB0 115200
+
+# Or using minicom:
+minicom -D /dev/ttyUSB0 -b 115200
+```
+
+**Reset and clean slate:**
+```bash
+# Reset WiFi credentials on ESP32: Hold BOOT button
+
+# Reset Pi WiFi:
+sudo nmcli connection delete Hotspot
+sudo nmcli connection show  # List all connections
+sudo nmcli connection delete <connection-name>  # Remove specific network
+
+# Restart all services:
+sudo systemctl restart mosquitto
+sudo systemctl restart smart-meter-scheduler
+sudo systemctl restart smart-meter-api
+sudo systemctl restart captive-portal
+
+# Clear database (backup first!):
+cd /home/$USER/smart_meter
+cp scheduler.db scheduler.db.backup
+rm scheduler.db
+python3 -c "from database import Database; Database('scheduler.db')"
 ```
 
 ## License
@@ -955,3 +1224,5 @@ This is a personal learning project, but suggestions and improvements are welcom
 - U8g2 OLED library by oliver
 - Eclipse Mosquitto MQTT broker
 - APScheduler by Alex Grönholm
+- Flask web framework
+- NetworkManager for Linux network management

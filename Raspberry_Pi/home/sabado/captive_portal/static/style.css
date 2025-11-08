@@ -10,9 +10,16 @@ body {
     max-width: 600px;
     margin: 40px auto;
     background: white;
-    padding: 20px;
+    padding: 15px;
     border-radius: 12px;
     box-shadow: 0px 4px 12px rgba(0,0,0,0.1);
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
 }
 
 h1 {
@@ -85,7 +92,10 @@ section {
 .network-list {
     max-height: 400px;
     overflow-y: auto;
+    overflow-x: visible;
     margin-top: 10px;
+    margin-right: -5px;
+    padding-right: 5px;
 }
 
 .network-item {
@@ -104,7 +114,7 @@ section {
 .network-item:hover {
     background: #e8f4ff;
     border-color: #007bff;
-    transform: translateX(5px);
+    transform: translateX(3px);
 }
 
 .network-info {
@@ -280,3 +290,129 @@ button.remove:hover {
 .network-list::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
+
+/* WiFi signal icon container */
+.wifi-icon-container {
+    position: relative;
+    display: inline-block;
+    width: 1.2em;
+    height: 1.2em;
+    margin-right: 5px;
+}
+
+/* Background wifi icon (always full signal at 50% opacity) */
+.wifi-icon-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    opacity: 0.3;
+}
+
+/* Foreground wifi icon (actual signal strength) */
+.wifi-icon-fg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    opacity: 1;
+}
+
+/* Clip the wifi icon to show different signal levels */
+.wifi-weak .wifi-icon-fg {
+    clip-path: polygon(0% 100%, 100% 100%, 100% 100%, 78.5% 76.28%, 50% 61.69%, 21.5% 76.28%, 0% 100%);
+}
+
+.wifi-fair .wifi-icon-fg {
+    clip-path: polygon(0% 100%, 100% 100%, 100% 50%, 77.17% 34.52%, 50% 29.75%, 22.83% 34.52%, 0% 50%);
+}
+
+.wifi-good .wifi-icon-fg,
+.wifi-excellent .wifi-icon-fg {
+    clip-path: none;
+}
+
+/* Mobile Responsive Styles */
+@media screen and (max-width: 768px) {
+    body {
+        padding: 0;
+        margin: 0;
+    }
+
+    .container {
+        max-width: 100%;
+        margin: 10px;
+        padding: 10px;
+        border-radius: 8px;
+    }
+
+    h1 {
+        font-size: 1.5em;
+        margin: 10px 0;
+    }
+
+    h2 {
+        font-size: 1.1em;
+    }
+
+    .network-item {
+        padding: 12px;
+        margin: 6px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .network-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .network-ssid {
+        font-size: 1em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .network-security {
+        font-size: 0.8em;
+    }
+
+    .signal-strength {
+        flex-shrink: 0;
+        margin-left: 10px;
+    }
+
+    .modal-content {
+        max-width: 90%;
+        padding: 20px;
+    }
+
+    section {
+        margin: 20px 0;
+        padding: 10px;
+    }
+}
+
+/* Extra small devices (phones in portrait mode) */
+@media screen and (max-width: 480px) {
+    .container {
+        margin: 5px;
+        padding: 8px;
+    }
+
+    h1 {
+        font-size: 1.3em;
+    }
+
+    .network-item {
+        padding: 10px;
+    }
+
+    .network-ssid {
+        font-size: 0.95em;
+    }
+
+    .network-security {
+        font-size: 0.75em;
+    }
+}
+

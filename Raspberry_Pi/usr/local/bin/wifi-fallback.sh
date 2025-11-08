@@ -1,5 +1,4 @@
 #!/bin/bash
-# wifi-fallback.sh
 
 set -e
 exec >>/var/log/wifi-fallback.log 2>&1

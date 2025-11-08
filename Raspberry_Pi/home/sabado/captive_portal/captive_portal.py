@@ -165,7 +165,7 @@ def add_network(ssid, password):
 
         if "wlan0:connected" in check.stdout:
             log.info("Connection verified! Rebooting...")
-            subprocess.Popen(["sudo", "shutdown", "-r", "now"])
+            subprocess.Popen(["sudo", "reboot"])
             time.sleep(2)
             os._exit(0)
 

@@ -7,8 +7,6 @@
 #include <ArduinoJson.h>
 #include <U8g2lib.h>
 #include <Wire.h>
-#include <ESPAsyncWebServer.h>
-#include <ElegantOTA.h>
 
 #define RESET_PIN 0       // BOOT button
 #define RELAY_PIN 4
@@ -22,7 +20,6 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 PZEM004Tv30 pzem(Serial2, PZEM_RX, PZEM_TX);
 U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE, OLED_SCL, OLED_SDA);
-AsyncWebServer server(80);
 
 char mqtt_server[40] = "mqttpi.local";
 char mqtt_port[6]    = "1883";
@@ -480,30 +477,11 @@ void setup() {
 
   setupWifi();
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String html = "<html><body style='font-family: Arial; margin: 40px;'>";
-    html += "<h1>SaBaDo Energy Meter</h1>";
-    html += "<p><strong>Device ID:</strong> " + clientId + "</p>";
-    html += "<p><strong>IP Address:</strong> " + WiFi.localIP().toString() + "</p>";
-    html += "<p><strong>WiFi Status:</strong> " + wifiStatus + "</p>";
-    html += "<p><strong>MQTT Status:</strong> " + mqttStatus + "</p>";
-    html += "<hr>";
-    html += "<p><a href='/update' style='font-size: 18px;'>Click here for OTA Firmware Update</a></p>";
-    html += "</body></html>";
-    request->send(200, "text/html", html);
-  });
-
-  ElegantOTA.begin(&server);  // Start ElegantOTA
-  server.begin();
-  Serial.println("HTTP server started - OTA available at /update");
-
   client.setCallback(mqttCallback);
   setupmDNS();
 }
 
 void loop() {
-  ElegantOTA.loop();
-
   if (digitalRead(RESET_PIN) == LOW) {
     Serial.println("Resetting WiFi and restarting...");
     wm.resetSettings();

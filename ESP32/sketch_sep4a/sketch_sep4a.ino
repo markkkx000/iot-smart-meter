@@ -100,14 +100,14 @@ void updateDisplay() {
     display.setFont(u8g2_font_6x10_tf);
   }
 
-  display.drawStr(0, 54, "Power:");
+  display.drawStr(0, 52, "Power:");
   char powerStr[16];
   snprintf(powerStr, sizeof(powerStr), "%.1fW", currentPower);
-  display.drawStr(45, 54, powerStr);
+  display.drawStr(45, 52, powerStr);
 
-  display.drawStr(0, 64, "Relay:");
+  display.drawStr(0, 62, "Relay:");
   bool relayState = (digitalRead(RELAY_PIN) == LOW);
-  display.drawStr(45, 64, relayState ? "ON" : "OFF");
+  display.drawStr(45, 62, relayState ? "ON" : "OFF");
 
   display.sendBuffer();
 }
@@ -488,7 +488,7 @@ void setup() {
     html += "<p><strong>WiFi Status:</strong> " + wifiStatus + "</p>";
     html += "<p><strong>MQTT Status:</strong> " + mqttStatus + "</p>";
     html += "<hr>";
-    html += "<p><a href='/update' style='font-size: 18px;'>Click here for OTA Firmware Update</a></p>";
+    html += "<p><a href='/update' style='font-size: 18px;'>Firmware Update</a></p>";
     html += "</body></html>";
     request->send(200, "text/html", html);
   });

@@ -5,7 +5,7 @@ plugins {
     
     // --- PHASE 1 ADDITIONS ---
     alias(libs.plugins.hilt)
-    id("com.google.devtools.ksp")
+    alias(libs.plugins.ksp)
 }
 
 android {

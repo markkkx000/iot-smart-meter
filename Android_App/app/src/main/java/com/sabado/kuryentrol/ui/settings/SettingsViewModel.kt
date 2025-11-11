@@ -8,11 +8,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
-/**
- * ViewModel for Settings Screen (with loading state)
- */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository
@@ -35,16 +33,9 @@ class SettingsViewModel @Inject constructor(
 
     private fun loadSettings() {
         viewModelScope.launch {
-            // Wait for first value from both repositories before marking as loaded
-            val broker = settingsRepository.brokerUrl
-            val api = settingsRepository.apiUrl
-            broker.collect { url ->
-                _brokerUrl.value = url
-                _isLoading.value = false // Mark as loaded after first emit (or both with advanced logic)
-            }
-            api.collect { url ->
-                _apiUrl.value = url
-            }
+            _brokerUrl.value = settingsRepository.brokerUrl.first()
+            _apiUrl.value = settingsRepository.apiUrl.first()
+            _isLoading.value = false
         }
     }
 

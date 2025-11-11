@@ -4,8 +4,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
-    kotlin("kapt") // Add kotlin-kapt for Room annotation processing
     id("com.google.dagger.hilt.android") // Apply the Hilt plugin
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -92,16 +92,14 @@ dependencies {
     implementation(libs.views.compose)
 
     // Room database
-    val roomVersion = "2.8.3"
-    implementation("androidx.room:room-runtime:$roomVersion")
-    kapt("androidx.room:room-compiler:$roomVersion")
-    implementation("androidx.room:room-ktx:$roomVersion")
+    implementation(libs.androidx.room.runtime)
+    ksp(libs.androidx.room.compiler.v250)
+    implementation(libs.androidx.room.ktx)
 
     // Hilt
-    val hiltVersion = "2.57.2"
-    implementation("com.google.dagger:hilt-android:$hiltVersion")
-    kapt("com.google.dagger:hilt-compiler:$hiltVersion")
-    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.navigation.compose.v120)
 
     // Test
     testImplementation(libs.junit)

@@ -2,8 +2,8 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.compose.compiler) apply false
-    // Add Hilt plugin
     alias(libs.plugins.hilt) apply false
+    id("com.google.devtools.ksp") version "2.0.21-1.0.27" apply false
 }
 
 // Add the dependency for the Hilt Gradle plugin in your project-level build.gradle.kts

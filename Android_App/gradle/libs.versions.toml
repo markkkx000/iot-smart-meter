@@ -13,7 +13,8 @@ composeBom = "2024.09.00"
 datastore = "1.1.1"
 hilt = "2.51.1"
 hiltNavigationCompose = "1.2.0"
-infoMqtt = "3.7.0"
+pahoMqtt = "1.2.5"
+pahoMqttService = "1.1.1"
 ksp = "2.0.21-1.0.25"  # CRITICAL: Must match your kotlin = "2.0.21"
 lifecycle = "2.9.4"
 navigationCompose = "2.7.7"
@@ -56,8 +57,9 @@ converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", ve
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 
-# MQTT (The modern, recommended library)
-info-mqtt-android-service = { group = "info.mqtt.android", name = "service", version.ref = "infoMqtt" }
+# MQTT
+paho-mqtt-client = { group = "org.eclipse.paho", name = "org.eclipse.paho.client.mqttv3", version.ref = "pahoMqtt" }
+paho-mqtt-android-service = { group = "org.eclipse.paho", name = "org.eclipse.paho.android.service", version.ref = "pahoMqttService" }
 
 # Persistence (DataStore for settings)
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }

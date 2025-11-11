@@ -80,7 +80,8 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
 
     // MQTT
-    implementation(libs.info.mqtt.android.service)
+    implementation(libs.paho.mqtt.client)
+    implementation(libs.paho.mqtt.android.service)
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)

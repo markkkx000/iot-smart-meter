@@ -6,5 +6,5 @@ plugins {
     
     // --- PHASE 1 ADDITIONS ---
     alias(libs.plugins.hilt) apply false
-    id("com.google.devtools.ksp") version "2.0.21-1.0.20" apply false
+    alias(libs.plugins.ksp) apply false
 }

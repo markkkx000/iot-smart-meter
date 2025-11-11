@@ -5,12 +5,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 
-/**
- * Settings Screen for configuring MQTT Broker and REST API URLs
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -22,6 +20,7 @@ fun SettingsScreen(
     val isLoading by viewModel.isLoading.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val focusManager = LocalFocusManager.current
 
     // Show success message
     LaunchedEffect(saveSuccess) {
@@ -43,7 +42,6 @@ fun SettingsScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         if (isLoading) {
-            // Center the loading indicator
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -98,7 +96,10 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
-                    onClick = { viewModel.saveSettings() },
+                    onClick = {
+                        focusManager.clearFocus() // Hide keyboard first
+                        viewModel.saveSettings()
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Save Settings")

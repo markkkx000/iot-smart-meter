@@ -143,6 +143,112 @@ class DeviceDetailsViewModel @Inject constructor(
         _selectedPeriod.value = period
     }
 
+    // Write Methods for Schedules
+    fun createSchedule(
+        scheduleType: String,
+        startTime: String? = null,
+        endTime: String? = null,
+        daysOfWeek: String? = null,
+        durationSeconds: Int? = null
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+
+            val scheduleData = buildMap<String, Any> {
+                put("client_id", clientId)
+                put("schedule_type", scheduleType)
+
+                if (scheduleType == "daily") {
+                    startTime?.let { put("start_time", it) }
+                    endTime?.let { put("end_time", it) }
+                    daysOfWeek?.let { put("days_of_week", it) }
+                } else if (scheduleType == "timer") {
+                    durationSeconds?.let { put("duration_seconds", it) }
+                }
+            }
+
+            deviceRepository.createSchedule(scheduleData).fold(
+                onSuccess = { message ->
+                    _errorMessage.value = message
+                    loadDeviceData() // Refresh
+                },
+                onFailure = { error ->
+                    _errorMessage.value = "Failed to create schedule: ${error.message}"
+                }
+            )
+
+            _isLoading.value = false
+        }
+    }
+
+    fun updateSchedule(scheduleId: Int, enabled: Boolean) {
+        viewModelScope.launch {
+            val updates = mapOf("enabled" to if (enabled) 1 else 0)
+
+            deviceRepository.updateSchedule(scheduleId, updates).fold(
+                onSuccess = { message ->
+                    _errorMessage.value = message
+                    loadDeviceData() // Refresh
+                },
+                onFailure = { error ->
+                    _errorMessage.value = "Failed to update schedule: ${error.message}"
+                }
+            )
+        }
+    }
+
+    fun deleteSchedule(scheduleId: Int) {
+        viewModelScope.launch {
+            deviceRepository.deleteSchedule(scheduleId).fold(
+                onSuccess = { message ->
+                    _errorMessage.value = message
+                    loadDeviceData() // Refresh
+                },
+                onFailure = { error ->
+                    _errorMessage.value = "Failed to delete schedule: ${error.message}"
+                }
+            )
+        }
+    }
+
+    // Write Methods for Thresholds
+    fun setThreshold(limitKwh: Float, resetPeriod: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+
+            val thresholdData = mapOf(
+                "limit_kwh" to limitKwh,
+                "reset_period" to resetPeriod
+            )
+
+            deviceRepository.setThreshold(clientId, thresholdData).fold(
+                onSuccess = { message ->
+                    _errorMessage.value = message
+                    loadDeviceData() // Refresh
+                },
+                onFailure = { error ->
+                    _errorMessage.value = "Failed to set threshold: ${error.message}"
+                }
+            )
+
+            _isLoading.value = false
+        }
+    }
+
+    fun deleteThreshold() {
+        viewModelScope.launch {
+            deviceRepository.deleteThreshold(clientId).fold(
+                onSuccess = { message ->
+                    _errorMessage.value = message
+                    loadDeviceData() // Refresh
+                },
+                onFailure = { error ->
+                    _errorMessage.value = "Failed to delete threshold: ${error.message}"
+                }
+            )
+        }
+    }
+
     private fun processReadingsForGraph(
         readings: List<EnergyReading>,
         period: TimePeriod

@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.sabado.kuryentrol.data.model.Schedule
 
 /**
  * Dialog for creating schedules (Daily or Timer)
@@ -16,23 +17,36 @@ import androidx.compose.ui.unit.dp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleDialog(
-    clientId: String,
+    existingSchedule: Schedule? = null,
     onDismiss: () -> Unit,
     onSave: (String, String?, String?, String?, Int?) -> Unit
 ) {
     var scheduleType by remember { mutableStateOf("daily") }
     var startTime by remember { mutableStateOf("08:00") }
     var endTime by remember { mutableStateOf("20:00") }
-    var selectedDays by remember { mutableStateOf(setOf<Int>()) }
-    var hours by remember { mutableStateOf("") }
-    var minutes by remember { mutableStateOf("") }
+    var selectedDays by remember {
+        mutableStateOf(
+            existingSchedule?.daysOfWeek?.split(",")?.mapNotNull { it.toIntOrNull() }?.toSet() ?: setOf()
+        )
+    }
+    var hours by remember {
+        mutableStateOf(
+            existingSchedule?.durationSeconds?.let { (it / 3600).toString() } ?: ""
+        )
+    }
+    var minutes by remember {
+        mutableStateOf(
+            existingSchedule?.durationSeconds?.let { ((it % 3600) / 60).toString() } ?: ""
+        )
+    }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
+    val isEditing = existingSchedule != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create Schedule") },
+        title = { Text(if (isEditing) "Edit Schedule" else "Create Schedule") },
         text = {
             Column(
                 modifier = Modifier

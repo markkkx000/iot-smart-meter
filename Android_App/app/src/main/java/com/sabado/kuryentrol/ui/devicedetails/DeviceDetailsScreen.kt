@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -58,6 +59,8 @@ fun DeviceDetailsScreen(
     // Dialog states
     var showScheduleDialog by remember { mutableStateOf(false) }
     var showThresholdDialog by remember { mutableStateOf(false) }
+    var editingSchedule by remember { mutableStateOf<Schedule?>(null) }
+    var editingThreshold by remember { mutableStateOf(false) }
 
     // Show error message
     LaunchedEffect(errorMessage) {
@@ -120,6 +123,10 @@ fun DeviceDetailsScreen(
                             threshold = threshold,
                             currentConsumption = totalConsumption,
                             onAddClick = { showThresholdDialog = true },
+                            onEditClick = {
+                                editingThreshold = true
+                                showThresholdDialog = true
+                            },
                             onDeleteClick = { viewModel.deleteThreshold() }
                         )
                     }
@@ -163,7 +170,11 @@ fun DeviceDetailsScreen(
                             ScheduleCard(
                                 schedule = schedule,
                                 onToggleClick = { 
-                                    viewModel.updateSchedule(schedule.id, schedule.enabled == 0)
+                                    viewModel.toggleSchedule(schedule.id, schedule.enabled == 0)
+                                },
+                                onEditClick = {
+                                    editingSchedule = schedule
+                                    showScheduleDialog = true
                                 },
                                 onDeleteClick = { viewModel.deleteSchedule(schedule.id) }
                             )
@@ -177,17 +188,29 @@ fun DeviceDetailsScreen(
     // Dialogs
     if (showScheduleDialog) {
         ScheduleDialog(
-            clientId = clientId,
-            onDismiss = { showScheduleDialog = false },
+            existingSchedule = editingSchedule,
+            onDismiss = {
+                showScheduleDialog = false
+                editingSchedule = null
+            },
             onSave = { type, start, end, days, duration ->
-                viewModel.createSchedule(type, start, end, days, duration)
+                if (editingSchedule != null) {
+                    viewModel.editSchedule(editingSchedule!!.id, type, start, end, days, duration)
+                } else {
+                    viewModel.createSchedule(type, start, end, days, duration)
+                }
+                editingSchedule = null
             }
         )
     }
-    
+
     if (showThresholdDialog) {
         ThresholdDialog(
-            onDismiss = { showThresholdDialog = false },
+            existingThreshold = if (editingThreshold) threshold else null,
+            onDismiss = {
+                showThresholdDialog = false
+                editingThreshold = false
+            },
             onSave = { limit, period ->
                 viewModel.setThreshold(limit, period)
             }
@@ -363,6 +386,7 @@ fun ThresholdCard(
     threshold: Threshold?,
     currentConsumption: Float,
     onAddClick: () -> Unit,
+    onEditClick: () -> Unit,  // Add this
     onDeleteClick: () -> Unit
 ) {
     Card(
@@ -381,7 +405,7 @@ fun ThresholdCard(
                     text = "Energy Threshold",
                     style = MaterialTheme.typography.titleMedium
                 )
-                
+
                 if (threshold == null) {
                     FilledTonalButton(
                         onClick = onAddClick,
@@ -390,12 +414,21 @@ fun ThresholdCard(
                         Text("Set")
                     }
                 } else {
-                    IconButton(onClick = onDeleteClick) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete Threshold",
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        IconButton(onClick = onEditClick) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Threshold",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        IconButton(onClick = onDeleteClick) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete Threshold",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
             }
@@ -467,7 +500,7 @@ fun ThresholdCard(
                                 tint = MaterialTheme.colorScheme.error
                             )
                             Text(
-                                text = "⚠️ Threshold triggered and disabled. It will NOT re-enable on next reset period. Delete and recreate to re-enable monitoring.",
+                                text = "Threshold triggered and disabled. It will NOT re-enable on next reset period. Delete and recreate to re-enable monitoring.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
@@ -489,6 +522,7 @@ fun ThresholdCard(
 fun ScheduleCard(
     schedule: Schedule,
     onToggleClick: (Schedule) -> Unit,
+    onEditClick: (Schedule) -> Unit,  // Add this
     onDeleteClick: (Schedule) -> Unit
 ) {
     Card(
@@ -513,7 +547,7 @@ fun ScheduleCard(
                         )
                         AssistChip(
                             onClick = { },
-                            label = { 
+                            label = {
                                 Text(
                                     text = if (schedule.enabled == 1) "Active" else "Disabled",
                                     style = MaterialTheme.typography.labelSmall
@@ -527,7 +561,7 @@ fun ScheduleCard(
                             )
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.height(4.dp))
 
                     when (schedule.scheduleType) {
@@ -560,15 +594,29 @@ fun ScheduleCard(
                         }
                     }
                 }
-                
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Switch(
-                        checked = schedule.enabled == 1,
-                        onCheckedChange = { onToggleClick(schedule) }
-                    )
+                    // Only show switch for daily schedules
+                    if (schedule.scheduleType == "daily") {
+                        Switch(
+                            checked = schedule.enabled == 1,
+                            onCheckedChange = { onToggleClick(schedule) }
+                        )
+                    }
+
+                    // Edit button
+                    IconButton(onClick = { onEditClick(schedule) }) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Schedule",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // Delete button
                     IconButton(onClick = { onDeleteClick(schedule) }) {
                         Icon(
                             imageVector = Icons.Default.Delete,
@@ -581,6 +629,7 @@ fun ScheduleCard(
         }
     }
 }
+
 
 /**
  * Helper function to format days of week from "0,1,2,3,4" to "Mon, Tue, Wed, Thu, Fri"

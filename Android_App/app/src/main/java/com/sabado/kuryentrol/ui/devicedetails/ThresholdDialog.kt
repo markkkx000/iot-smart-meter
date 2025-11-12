@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.sabado.kuryentrol.data.model.Threshold
 
 /**
  * Dialog for setting energy consumption threshold
@@ -15,15 +16,18 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ThresholdDialog(
     onDismiss: () -> Unit,
+    existingThreshold: Threshold? = null,
     onSave: (Float, String) -> Unit
 ) {
-    var limit by remember { mutableStateOf("") }
-    var resetPeriod by remember { mutableStateOf("daily") }
+    var limit by remember { mutableStateOf(existingThreshold?.limitKwh?.toString() ?: "") }
+    var resetPeriod by remember { mutableStateOf(existingThreshold?.resetPeriod ?: "daily") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val isEditing = existingThreshold != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Set Energy Threshold") },
+        title = { Text(if (isEditing) "Edit Threshold" else "Set Energy Threshold") },
         text = {
             Column(
                 modifier = Modifier

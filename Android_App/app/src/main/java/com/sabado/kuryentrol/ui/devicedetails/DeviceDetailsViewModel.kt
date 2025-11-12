@@ -185,14 +185,51 @@ class DeviceDetailsViewModel @Inject constructor(
         }
     }
 
-    fun updateSchedule(scheduleId: Int, enabled: Boolean) {
+    fun editSchedule(
+        scheduleId: Int,
+        scheduleType: String,
+        startTime: String? = null,
+        endTime: String? = null,
+        daysOfWeek: String? = null,
+        durationSeconds: Int? = null
+    ) {
         viewModelScope.launch {
-            val updates = mapOf("enabled" to (if (enabled) "1" else "0"))
+            _isLoading.value = true
+
+            val scheduleData = buildMap {
+                put("schedule_type", scheduleType)
+
+                if (scheduleType == "daily") {
+                    startTime?.let { put("start_time", it) }
+                    endTime?.let { put("end_time", it) }
+                    daysOfWeek?.let { put("days_of_week", it) }
+                } else if (scheduleType == "timer") {
+                    durationSeconds?.let { put("duration_seconds", it.toString()) }
+                }
+            }
+
+            deviceRepository.updateSchedule(scheduleId, scheduleData).fold(
+                onSuccess = { message ->
+                    _errorMessage.value = message
+                    loadDeviceData()
+                },
+                onFailure = { error ->
+                    _errorMessage.value = "Failed to update schedule: ${error.message}"
+                }
+            )
+
+            _isLoading.value = false
+        }
+    }
+
+    fun toggleSchedule(scheduleId: Int, enabled: Boolean) {
+        viewModelScope.launch {
+            val updates = mapOf("enabled" to if (enabled) "1" else "0")
 
             deviceRepository.updateSchedule(scheduleId, updates).fold(
                 onSuccess = { message ->
                     _errorMessage.value = message
-                    loadDeviceData() // Refresh
+                    loadDeviceData() // Force refresh to update UI
                 },
                 onFailure = { error ->
                     _errorMessage.value = "Failed to update schedule: ${error.message}"

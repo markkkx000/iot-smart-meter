@@ -6,10 +6,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -50,6 +54,10 @@ fun DeviceDetailsScreen(
     val clientId = viewModel.getClientId()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Dialog states
+    var showScheduleDialog by remember { mutableStateOf(false) }
+    var showThresholdDialog by remember { mutableStateOf(false) }
 
     // Show error message
     LaunchedEffect(errorMessage) {
@@ -108,15 +116,38 @@ fun DeviceDetailsScreen(
 
                     // Threshold Card
                     item {
-                        ThresholdCard(threshold)
+                        ThresholdCard(
+                            threshold = threshold,
+                            currentConsumption = totalConsumption,
+                            onAddClick = { showThresholdDialog = true },
+                            onDeleteClick = { viewModel.deleteThreshold() }
+                        )
                     }
 
-                    // Schedules Section
+                    // Schedules Section Header
                     item {
-                        Text(
-                            text = "Schedules",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Schedules",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            FilledTonalButton(
+                                onClick = { showScheduleDialog = true },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add Schedule",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add Schedule")
+                            }
+                        }
                     }
 
                     if (schedules.isEmpty()) {
@@ -129,12 +160,38 @@ fun DeviceDetailsScreen(
                         }
                     } else {
                         items(schedules) { schedule ->
-                            ScheduleCard(schedule)
+                            ScheduleCard(
+                                schedule = schedule,
+                                onToggleClick = { 
+                                    viewModel.updateSchedule(schedule.id, schedule.enabled == 0)
+                                },
+                                onDeleteClick = { viewModel.deleteSchedule(schedule.id) }
+                            )
                         }
                     }
                 }
             }
         }
+    }
+    
+    // Dialogs
+    if (showScheduleDialog) {
+        ScheduleDialog(
+            clientId = clientId,
+            onDismiss = { showScheduleDialog = false },
+            onSave = { type, start, end, days, duration ->
+                viewModel.createSchedule(type, start, end, days, duration)
+            }
+        )
+    }
+    
+    if (showThresholdDialog) {
+        ThresholdDialog(
+            onDismiss = { showThresholdDialog = false },
+            onSave = { limit, period ->
+                viewModel.setThreshold(limit, period)
+            }
+        )
     }
 }
 
@@ -202,7 +259,7 @@ fun EnergyGraphCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "₱${String.format("%.2f", energyBill)}", // Changed $ to ₱
+                        text = "₱${String.format("%.2f", energyBill)}",
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.secondary
                     )
@@ -253,9 +310,9 @@ fun EnergyChart(
 
     val scrollState = rememberVicoScrollState(
         scrollEnabled = true,
-        initialScroll = Scroll.Absolute.End,  // Start at the end (right side)
-        autoScroll = Scroll.Absolute.End,      // Auto-scroll to end
-        autoScrollCondition = AutoScrollCondition.OnModelSizeIncreased // Auto-scroll when data changes
+        initialScroll = Scroll.Absolute.End,
+        autoScroll = Scroll.Absolute.End,
+        autoScrollCondition = AutoScrollCondition.OnModelSizeIncreased
     )
 
     LaunchedEffect(data) {
@@ -300,28 +357,127 @@ fun EnergyChart(
     )
 }
 
+@SuppressLint("DefaultLocale")
 @Composable
-fun ThresholdCard(threshold: Threshold?) {
+fun ThresholdCard(
+    threshold: Threshold?,
+    currentConsumption: Float,
+    onAddClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = "Energy Threshold",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Energy Threshold",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                
+                if (threshold == null) {
+                    FilledTonalButton(
+                        onClick = onAddClick,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text("Set")
+                    }
+                } else {
+                    IconButton(onClick = onDeleteClick) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete Threshold",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
 
             if (threshold != null) {
-                Text("Limit: ${threshold.limitKwh} kWh")
-                Text("Reset Period: ${threshold.resetPeriod}")
-                Text("Status: ${if (threshold.enabled == 1) "Enabled" else "Disabled"}")
-                Text("Last Reset: ${threshold.lastReset}")
+                Text(
+                    text = "Limit: ${threshold.limitKwh} kWh",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Reset: ${threshold.resetPeriod.replaceFirstChar { it.uppercase() }}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Status: ${if (threshold.enabled == 1) "Active" else "Disabled"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (threshold.enabled == 1) 
+                        MaterialTheme.colorScheme.primary 
+                    else 
+                        MaterialTheme.colorScheme.error
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Progress Bar
+                Text(
+                    text = "Current Usage",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                val progress = (currentConsumption / threshold.limitKwh).coerceIn(0f, 1f)
+                val progressColor = when {
+                    progress > 1.0f -> MaterialTheme.colorScheme.error
+                    progress > 0.7f -> Color(0xFFFF9800) // Orange
+                    else -> MaterialTheme.colorScheme.primary
+                }
+                
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = progressColor,
+                )
+                
+                Text(
+                    text = String.format("%.2f / %.2f kWh", currentConsumption, threshold.limitKwh),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Warning if disabled
+                if (threshold.enabled == 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Warning",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "⚠️ Threshold triggered and disabled. It will NOT re-enable on next reset period. Delete and recreate to re-enable monitoring.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
             } else {
                 Text(
-                    text = "No threshold configured",
+                    text = "No threshold configured. Set a threshold to automatically disable the device when energy consumption exceeds a limit.",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -330,7 +486,11 @@ fun ThresholdCard(threshold: Threshold?) {
 }
 
 @Composable
-fun ScheduleCard(schedule: Schedule) {
+fun ScheduleCard(
+    schedule: Schedule,
+    onToggleClick: (Schedule) -> Unit,
+    onDeleteClick: (Schedule) -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -339,37 +499,97 @@ fun ScheduleCard(schedule: Schedule) {
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = schedule.scheduleType.uppercase(),
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Text(
-                    text = if (schedule.enabled == 1) "●" else "○",
-                    color = if (schedule.enabled == 1)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = schedule.scheduleType.uppercase(),
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        AssistChip(
+                            onClick = { },
+                            label = { 
+                                Text(
+                                    text = if (schedule.enabled == 1) "Active" else "Disabled",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = if (schedule.enabled == 1)
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
 
-            when (schedule.scheduleType) {
-                "daily" -> {
-                    Text("Time: ${schedule.startTime} - ${schedule.endTime}")
-                    schedule.daysOfWeek?.let {
-                        Text("Days: $it")
+                    when (schedule.scheduleType) {
+                        "daily" -> {
+                            Text(
+                                text = "${schedule.startTime} - ${schedule.endTime}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            schedule.daysOfWeek?.let {
+                                Text(
+                                    text = formatDaysOfWeek(it),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } ?: Text(
+                                text = "Every Day",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        "timer" -> {
+                            schedule.durationSeconds?.let {
+                                val hours = it / 3600
+                                val minutes = (it % 3600) / 60
+                                Text(
+                                    text = "Duration: ${hours}h ${minutes}m",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
                     }
                 }
-                "timer" -> {
-                    schedule.durationSeconds?.let {
-                        val hours = it / 3600
-                        val minutes = (it % 3600) / 60
-                        Text("Duration: ${hours}h ${minutes}m")
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Switch(
+                        checked = schedule.enabled == 1,
+                        onCheckedChange = { onToggleClick(schedule) }
+                    )
+                    IconButton(onClick = { onDeleteClick(schedule) }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete Schedule",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * Helper function to format days of week from "0,1,2,3,4" to "Mon, Tue, Wed, Thu, Fri"
+ */
+fun formatDaysOfWeek(daysString: String): String {
+    val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    return daysString.split(",")
+        .mapNotNull { it.toIntOrNull() }
+        .filter { it in 0..6 }
+        .map { dayLabels[it] }
+        .joinToString(", ")
 }

@@ -131,7 +131,11 @@ class DeviceDetailsViewModel @Inject constructor(
                     _threshold.value = threshold
                 },
                 onFailure = { error ->
-                    _errorMessage.value = "Failed to load threshold: ${error.message}"
+                    if (error.message?.contains("404") == true) {
+                        _errorMessage.value = null
+                    } else {
+                        _errorMessage.value = "Failed to load threshold: ${error.message}"
+                    }
                 }
             )
 
@@ -240,12 +244,14 @@ class DeviceDetailsViewModel @Inject constructor(
             deviceRepository.deleteThreshold(clientId).fold(
                 onSuccess = { message ->
                     _errorMessage.value = message
+                    _threshold.value = null
                     loadDeviceData() // Refresh
                 },
                 onFailure = { error ->
                     _errorMessage.value = "Failed to delete threshold: ${error.message}"
                 }
             )
+
         }
     }
 

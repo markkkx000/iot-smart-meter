@@ -1,5 +1,6 @@
 package com.sabado.kuryentrol.ui.devicedetails
 
+import android.annotation.SuppressLint
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -182,6 +183,7 @@ class DeviceDetailsViewModel @Inject constructor(
     }
 
 
+    @SuppressLint("DefaultLocale")
     private fun groupByHourWithEmptySlots(readings: List<EnergyReading>): List<GraphDataPoint> {
         val now = Calendar.getInstance()
         val currentHour = now.get(Calendar.HOUR_OF_DAY)

@@ -1,5 +1,6 @@
 package com.sabado.kuryentrol.ui.devicedetails
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -157,6 +158,7 @@ fun TimePeriodSelector(
     }
 }
 
+@SuppressLint("DefaultLocale")
 @Composable
 fun EnergyGraphCard(
     graphData: List<GraphDataPoint>,

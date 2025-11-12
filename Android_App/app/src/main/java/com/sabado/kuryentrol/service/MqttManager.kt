@@ -3,7 +3,7 @@ package com.sabado.kuryentrol.service
 import android.content.Context
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
-import org.eclipse.paho.android.service.MqttAndroidClient
+import info.mqtt.android.service.MqttAndroidClient
 import org.eclipse.paho.client.mqttv3.*
 import javax.inject.Inject
 import javax.inject.Singleton

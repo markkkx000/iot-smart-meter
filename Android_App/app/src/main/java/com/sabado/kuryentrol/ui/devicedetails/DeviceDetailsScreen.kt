@@ -5,10 +5,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,9 +27,6 @@ import com.sabado.kuryentrol.data.model.Threshold
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.core.cartesian.AutoScrollCondition
 import com.patrykandpatrick.vico.core.cartesian.Scroll
-import android.app.TimePickerDialog
-import androidx.compose.ui.platform.LocalContext
-import java.util.*
 
 /**
  * Device Details Screen with graph visualization
@@ -56,19 +49,6 @@ fun DeviceDetailsScreen(
     val clientId = viewModel.getClientId()
 
     val snackbarHostState = remember { SnackbarHostState() }
-
-    // Dialog and state for time pickers
-    var showScheduleDialog by remember { mutableStateOf(false) }
-    var scheduleType by remember { mutableStateOf("daily") }
-    var startTime by remember { mutableStateOf("08:00") }
-    var endTime by remember { mutableStateOf("20:00") }
-    var selectedDays by remember { mutableStateOf(setOf(0, 1, 2, 3, 4)) }
-    var durationHours by remember { mutableStateOf("1") }
-    var durationMinutes by remember { mutableStateOf("0") }
-    var showStartTimePicker by remember { mutableStateOf(false) }
-    var showEndTimePicker by remember { mutableStateOf(false) }
-
-    val context = LocalContext.current
 
     // Show error message
     LaunchedEffect(errorMessage) {
@@ -132,23 +112,10 @@ fun DeviceDetailsScreen(
 
                     // Schedules Section
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Schedules",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            FilledTonalButton(
-                                onClick = { showScheduleDialog = true }
-                            ) {
-                                Icon(Icons.Default.Add, "Add", modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Add")
-                            }
-                        }
+                        Text(
+                            text = "Schedules",
+                            style = MaterialTheme.typography.titleMedium
+                        )
                     }
 
                     if (schedules.isEmpty()) {
@@ -167,157 +134,240 @@ fun DeviceDetailsScreen(
                 }
             }
         }
+    }
+}
 
-        // TimePickerDialogs for wheels
-        if (showStartTimePicker) {
-            val cal = Calendar.getInstance()
-            val hour = startTime.substringBefore(":").toIntOrNull() ?: 8
-            val minute = startTime.substringAfter(":").toIntOrNull() ?: 0
-            TimePickerDialog(
-                context,
-                { _, h, m ->
-                    startTime = String.format("%02d:%02d", h, m)
-                    showStartTimePicker = false
-                },
-                hour,
-                minute,
-                true
-            ).show()
-        }
-        if (showEndTimePicker) {
-            val cal = Calendar.getInstance()
-            val hour = endTime.substringBefore(":").toIntOrNull() ?: 20
-            val minute = endTime.substringAfter(":").toIntOrNull() ?: 0
-            TimePickerDialog(
-                context,
-                { _, h, m ->
-                    endTime = String.format("%02d:%02d", h, m)
-                    showEndTimePicker = false
-                },
-                hour,
-                minute,
-                true
-            ).show()
-        }
-
-        // Schedule Dialog with wheel selectors
-        if (showScheduleDialog) {
-            AlertDialog(
-                onDismissRequest = { showScheduleDialog = false },
-                title = { Text("Create Schedule") },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text("Schedule Type", style = MaterialTheme.typography.titleSmall)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FilterChip(
-                                selected = scheduleType == "daily",
-                                onClick = { scheduleType = "daily" },
-                                label = { Text("Daily") },
-                                modifier = Modifier.weight(1f)
-                            )
-                            FilterChip(
-                                selected = scheduleType == "timer",
-                                onClick = { scheduleType = "timer" },
-                                label = { Text("Timer") },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        if (scheduleType == "daily") {
-                            OutlinedButton(
-                                onClick = { showStartTimePicker = true },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(startTime)
-                            }
-                            OutlinedButton(
-                                onClick = { showEndTimePicker = true },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(endTime)
-                            }
-
-                            Text("Days (0=Mon, 6=Sun)", style = MaterialTheme.typography.labelSmall)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEachIndexed { i, day ->
-                                    FilterChip(
-                                        selected = selectedDays.contains(i),
-                                        onClick = {
-                                            selectedDays = if (selectedDays.contains(i)) {
-                                                selectedDays - i
-                                            } else {
-                                                selectedDays + i
-                                            }
-                                        },
-                                        label = { Text(day) }
-                                    )
-                                }
-                            }
-                        } else {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutlinedTextField(
-                                    value = durationHours,
-                                    onValueChange = { durationHours = it },
-                                    label = { Text("Hours") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                OutlinedTextField(
-                                    value = durationMinutes,
-                                    onValueChange = { durationMinutes = it },
-                                    label = { Text("Minutes") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            if (scheduleType == "daily") {
-                                val daysOfWeek = if (selectedDays.size == 7) null else selectedDays.sorted().joinToString(",")
-                                viewModel.createSchedule(
-                                    scheduleType = scheduleType,
-                                    startTime = startTime,
-                                    endTime = endTime,
-                                    daysOfWeek = daysOfWeek
-                                )
-                            } else {
-                                val hours = durationHours.toIntOrNull() ?: 0
-                                val minutes = durationMinutes.toIntOrNull() ?: 0
-                                val seconds = (hours * 3600) + (minutes * 60)
-                                if (seconds > 0) {
-                                    viewModel.createSchedule(
-                                        scheduleType = scheduleType,
-                                        durationSeconds = seconds
-                                    )
-                                }
-                            }
-                            showScheduleDialog = false
-                        }
-                    ) {
-                        Text("Save")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showScheduleDialog = false }) {
-                        Text("Cancel")
-                    }
-                }
+@Composable
+fun TimePeriodSelector(
+    selectedPeriod: TimePeriod,
+    onPeriodSelected: (TimePeriod) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        TimePeriod.entries.forEach { period ->
+            FilterChip(
+                selected = selectedPeriod == period,
+                onClick = { onPeriodSelected(period) },
+                label = { Text(period.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                modifier = Modifier.weight(1f)
             )
         }
     }
 }
-// The rest of the file: TimePeriodSelector, EnergyGraphCard, EnergyChart, ThresholdCard, ScheduleCard, formatDaysOfWeek....
+
+@Composable
+fun EnergyGraphCard(
+    graphData: List<GraphDataPoint>,
+    totalConsumption: Float,
+    energyBill: Float,
+    pricePerKwh: Float
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Energy Consumption",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Stats Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = "Total Consumption",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = String.format("%.3f kWh", totalConsumption),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "Estimated Bill",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "₱${String.format("%.2f", energyBill)}", // Changed $ to ₱
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+
+            Text(
+                text = "(Rate: ₱${String.format("%.2f", pricePerKwh)}/kWh)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Graph
+            if (graphData.isNotEmpty()) {
+                EnergyChart(
+                    data = graphData,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No data available for this period",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EnergyChart(
+    data: List<GraphDataPoint>,
+    modifier: Modifier = Modifier
+) {
+    val modelProducer = remember { CartesianChartModelProducer() }
+
+    val scrollState = rememberVicoScrollState(
+        scrollEnabled = true,
+        initialScroll = Scroll.Absolute.End,  // Start at the end (right side)
+        autoScroll = Scroll.Absolute.End,      // Auto-scroll to end
+        autoScrollCondition = AutoScrollCondition.OnModelSizeIncreased // Auto-scroll when data changes
+    )
+
+    LaunchedEffect(data) {
+        modelProducer.runTransaction {
+            columnSeries {
+                series(data.map { it.value })
+            }
+        }
+    }
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+
+    CartesianChartHost(
+        chart = rememberCartesianChart(
+            rememberColumnCartesianLayer(
+                columnProvider = ColumnCartesianLayer.ColumnProvider.series(
+                    rememberLineComponent(
+                        color = primaryColor,
+                        thickness = 16.dp,
+                        shape = Shape.rounded(allPercent = 40)
+                    )
+                )
+            ),
+            startAxis = rememberStartAxis(
+                label = rememberTextComponent(
+                    color = onSurfaceColor
+                )
+            ),
+            bottomAxis = rememberBottomAxis(
+                label = rememberTextComponent(
+                    color = onSurfaceColor
+                ),
+                valueFormatter = { value, _, _ ->
+                    data.getOrNull(value.toInt())?.label ?: ""
+                }
+            )
+        ),
+        modelProducer = modelProducer,
+        scrollState = scrollState,
+        modifier = modifier
+    )
+}
+
+@Composable
+fun ThresholdCard(threshold: Threshold?) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Energy Threshold",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (threshold != null) {
+                Text("Limit: ${threshold.limitKwh} kWh")
+                Text("Reset Period: ${threshold.resetPeriod}")
+                Text("Status: ${if (threshold.enabled == 1) "Enabled" else "Disabled"}")
+                Text("Last Reset: ${threshold.lastReset}")
+            } else {
+                Text(
+                    text = "No threshold configured",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ScheduleCard(schedule: Schedule) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = schedule.scheduleType.uppercase(),
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Text(
+                    text = if (schedule.enabled == 1) "●" else "○",
+                    color = if (schedule.enabled == 1)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+
+            when (schedule.scheduleType) {
+                "daily" -> {
+                    Text("Time: ${schedule.startTime} - ${schedule.endTime}")
+                    schedule.daysOfWeek?.let {
+                        Text("Days: $it")
+                    }
+                }
+                "timer" -> {
+                    schedule.durationSeconds?.let {
+                        val hours = it / 3600
+                        val minutes = (it % 3600) / 60
+                        Text("Duration: ${hours}h ${minutes}m")
+                    }
+                }
+            }
+        }
+    }
+}

@@ -228,7 +228,6 @@ class DeviceDetailsViewModel @Inject constructor(
     }
 
     private fun groupByDayOfWeek(readings: List<EnergyReading>): List<GraphDataPoint> {
-        val now = Calendar.getInstance()
 
         // Create map for 7 days (today back to 6 days ago)
         val daysMap = mutableMapOf<String, MutableList<EnergyReading>>()
@@ -255,7 +254,7 @@ class DeviceDetailsViewModel @Inject constructor(
         }
 
         // Calculate consumption for each day
-        return dayLabels.mapNotNull { (label, offset) ->
+        return dayLabels.map { (label, offset) ->
             val dayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, offset) }
             val dayKey = "${dayCal.get(Calendar.YEAR)}-${dayCal.get(Calendar.DAY_OF_YEAR)}"
             val dayReadings = daysMap[dayKey] ?: emptyList()

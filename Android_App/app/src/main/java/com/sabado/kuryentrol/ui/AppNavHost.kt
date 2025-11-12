@@ -1,12 +1,13 @@
 package com.sabado.kuryentrol.ui
 
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -34,7 +35,7 @@ fun AppNavHost() {
                         popUpTo(0)
                         launchSingleTop = true
                     } },
-                    icon = { Icon(Icons.Filled.Devices, contentDescription = "Dashboard") },
+                    icon = { Icon(Icons.Filled.Home, contentDescription = "Dashboard") },
                     label = { Text(Screen.Dashboard.label) }
                 )
                 NavigationBarItem(

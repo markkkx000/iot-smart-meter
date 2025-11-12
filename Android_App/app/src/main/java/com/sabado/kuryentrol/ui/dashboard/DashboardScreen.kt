@@ -16,6 +16,7 @@ import com.sabado.kuryentrol.data.model.PzemMetrics
 /**
  * DashboardScreen: displays a real-time list of devices, their statuses, relay switches, and metrics
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel()

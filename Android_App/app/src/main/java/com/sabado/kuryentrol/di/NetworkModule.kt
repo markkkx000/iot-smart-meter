@@ -44,13 +44,16 @@ object NetworkModule {
         settingsRepository: SettingsRepository
     ): Retrofit {
         // Get the API URL from settings
-        // This is blocking because Hilt needs synchronous providers
+        // This is blocking, needs to be synchronous
         val apiUrl = runBlocking {
             settingsRepository.apiUrl.first()
         }
 
+        // Ensure URL ends with a slash
+        val baseUrl = if (apiUrl.endsWith("/")) apiUrl else "$apiUrl/"
+
         return Retrofit.Builder()
-            .baseUrl(apiUrl)
+            .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

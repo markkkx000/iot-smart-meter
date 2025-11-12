@@ -147,9 +147,9 @@ fun EnergySummaryCard(readings: List<EnergyReading>) {
             if (readings.isNotEmpty()) {
                 val latestReading = readings.last()
                 val firstReading = readings.first()
-                val totalConsumption = latestReading.energy_kwh - firstReading.energy_kwh
+                val totalConsumption = latestReading.energyKwh - firstReading.energyKwh
 
-                Text("Latest Reading: ${latestReading.energy_kwh} kWh")
+                Text("Latest Reading: ${latestReading.energyKwh} kWh")
                 Text("Total Consumption: ${"%%.3f".format(totalConsumption)} kWh")
                 Text("Number of Readings: ${readings.size}")
             } else {
@@ -177,10 +177,10 @@ fun ThresholdCard(threshold: Threshold?) {
             Spacer(modifier = Modifier.height(8.dp))
 
             if (threshold != null) {
-                Text("Limit: ${threshold.limit_kwh} kWh")
-                Text("Reset Period: ${threshold.reset_period}")
+                Text("Limit: ${threshold.limitKwh} kWh")
+                Text("Reset Period: ${threshold.resetPeriod}")
                 Text("Status: ${if (threshold.enabled == 1) "Enabled" else "Disabled"}")
-                Text("Last Reset: ${threshold.last_reset}")
+                Text("Last Reset: ${threshold.lastReset}")
             } else {
                 Text(
                     text = "No threshold configured",
@@ -204,28 +204,29 @@ fun ScheduleCard(schedule: Schedule) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = schedule.schedule_type.uppercase(),
+                    text = schedule.scheduleType.uppercase(),
                     style = MaterialTheme.typography.titleSmall
                 )
                 Text(
                     text = if (schedule.enabled == 1) "●" else "○",
-                    color = if (schedule.enabled == 1) 
-                        MaterialTheme.colorScheme.primary 
-                    else 
+                    color = if (schedule.enabled == 1)
+                        MaterialTheme.colorScheme.primary
+                    else
                         MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
 
-            when (schedule.schedule_type) {
+            when (schedule.scheduleType) {
                 "daily" -> {
-                    Text("Time: ${schedule.start_time} - ${schedule.end_time}")
-                    schedule.days_of_week?.let {
+                    Text("Time: ${schedule.startTime} - ${schedule.endTime}")
+                    schedule.daysOfWeek?.let {
                         Text("Days: $it")
                     }
                 }
+
                 "timer" -> {
-                    schedule.duration_seconds?.let {
+                    schedule.durationSeconds?.let {
                         val hours = it / 3600
                         val minutes = (it % 3600) / 60
                         Text("Duration: ${hours}h ${minutes}m")
@@ -252,7 +253,7 @@ fun EnergyReadingCard(reading: EnergyReading) {
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                text = "${reading.energy_kwh} kWh",
+                text = "${reading.energyKwh} kWh",
                 style = MaterialTheme.typography.bodyMedium
             )
         }

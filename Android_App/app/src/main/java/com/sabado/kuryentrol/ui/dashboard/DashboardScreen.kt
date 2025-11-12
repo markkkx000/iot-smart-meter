@@ -1,6 +1,7 @@
 package com.sabado.kuryentrol.ui.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,6 +20,7 @@ import com.sabado.kuryentrol.data.model.PzemMetrics
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
+    onDeviceClick: (String) -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val statuses by viewModel.statuses.collectAsState()
@@ -61,7 +63,8 @@ fun DashboardScreen(
                             status = status,
                             relayState = relay == "1",
                             metrics = m,
-                            onRelayToggle = { on -> viewModel.setRelay(clientId, on) }
+                            onRelayToggle = { on -> viewModel.setRelay(clientId, on) },
+                            onClick = { onDeviceClick(clientId) }
                         )
                     }
                 }
@@ -76,10 +79,13 @@ fun DeviceCard(
     status: String,
     relayState: Boolean,
     metrics: PzemMetrics?,
-    onRelayToggle: (Boolean) -> Unit
+    onRelayToggle: (Boolean) -> Unit,
+    onClick: () -> Unit
 ) {
     Card(
-        Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(
@@ -116,6 +122,12 @@ fun DeviceCard(
                 Text("Current: ${it.current} A")
                 Text("Power: ${it.power} W")
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Tap for details",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }

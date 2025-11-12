@@ -154,7 +154,7 @@ class DeviceDetailsViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
 
-            val scheduleData = buildMap<String, Any> {
+            val scheduleData = buildMap {
                 put("client_id", clientId)
                 put("schedule_type", scheduleType)
 
@@ -163,7 +163,7 @@ class DeviceDetailsViewModel @Inject constructor(
                     endTime?.let { put("end_time", it) }
                     daysOfWeek?.let { put("days_of_week", it) }
                 } else if (scheduleType == "timer") {
-                    durationSeconds?.let { put("duration_seconds", it) }
+                    durationSeconds?.let { put("duration_seconds", it.toString()) } // Convert to String
                 }
             }
 
@@ -183,7 +183,7 @@ class DeviceDetailsViewModel @Inject constructor(
 
     fun updateSchedule(scheduleId: Int, enabled: Boolean) {
         viewModelScope.launch {
-            val updates = mapOf("enabled" to if (enabled) 1 else 0)
+            val updates = mapOf("enabled" to (if (enabled) "1" else "0"))
 
             deviceRepository.updateSchedule(scheduleId, updates).fold(
                 onSuccess = { message ->
@@ -217,7 +217,7 @@ class DeviceDetailsViewModel @Inject constructor(
             _isLoading.value = true
 
             val thresholdData = mapOf(
-                "limit_kwh" to limitKwh,
+                "limit_kwh" to limitKwh.toString(),
                 "reset_period" to resetPeriod
             )
 

@@ -589,7 +589,5 @@ fun formatDaysOfWeek(daysString: String): String {
     val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     return daysString.split(",")
         .mapNotNull { it.toIntOrNull() }
-        .filter { it in 0..6 }
-        .map { dayLabels[it] }
-        .joinToString(", ")
+        .filter { it in 0..6 }.joinToString(", ") { dayLabels[it] }
 }

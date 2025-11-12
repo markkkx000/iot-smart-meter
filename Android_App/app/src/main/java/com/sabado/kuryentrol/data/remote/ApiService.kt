@@ -23,9 +23,6 @@ interface ApiService {
         @Query("period") period: String? = null
     ): Response<EnergyResponse>
 
-    @GET("schedules")
-    suspend fun getAllSchedules(): Response<SchedulesResponse>
-
     @GET("schedules/{clientId}")
     suspend fun getSchedules(
         @Path("clientId") clientId: String
@@ -33,13 +30,13 @@ interface ApiService {
 
     @POST("schedules")
     suspend fun createSchedule(
-        @Body schedule: Map<String, Any>
+        @Body schedule: Map<String, String>
     ): Response<ApiSuccessResponse>
 
     @PUT("schedules/{scheduleId}")
     suspend fun updateSchedule(
         @Path("scheduleId") scheduleId: Int,
-        @Body updates: Map<String, Any>
+        @Body updates: Map<String, String>
     ): Response<ApiSuccessResponse>
 
     @DELETE("schedules/{scheduleId}")
@@ -55,7 +52,7 @@ interface ApiService {
     @PUT("thresholds/{clientId}")
     suspend fun setThreshold(
         @Path("clientId") clientId: String,
-        @Body threshold: Map<String, Any>
+        @Body threshold: Map<String, String>
     ): Response<ApiSuccessResponse>
 
     @DELETE("thresholds/{clientId}")

@@ -69,7 +69,7 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun createSchedule(schedule: Map<String, Any>): Result<String> {
+    suspend fun createSchedule(schedule: Map<String, String>): Result<String> {
         return try {
             val response = apiService.createSchedule(schedule)
             if (response.isSuccessful && response.body() != null) {
@@ -82,7 +82,7 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun updateSchedule(scheduleId: Int, updates: Map<String, Any>): Result<String> {
+    suspend fun updateSchedule(scheduleId: Int, updates: Map<String, String>): Result<String> {
         return try {
             val response = apiService.updateSchedule(scheduleId, updates)
             if (response.isSuccessful && response.body() != null) {
@@ -121,7 +121,7 @@ class DeviceRepository @Inject constructor(
         }
     }
 
-    suspend fun setThreshold(clientId: String, threshold: Map<String, Any>): Result<String> {
+    suspend fun setThreshold(clientId: String, threshold: Map<String, String>): Result<String> {
         return try {
             val response = apiService.setThreshold(clientId, threshold)
             if (response.isSuccessful && response.body() != null) {

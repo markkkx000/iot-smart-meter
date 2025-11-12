@@ -1,5 +1,6 @@
 package com.sabado.kuryentrol.ui.devicedetails
 
+import android.annotation.SuppressLint
 import android.app.TimePickerDialog
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -7,11 +8,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import java.util.*
 
 /**
  * Dialog for creating schedules (Daily or Timer)
  */
+@SuppressLint("DefaultLocale")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleDialog(
@@ -28,7 +29,6 @@ fun ScheduleDialog(
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
-    val calendar = Calendar.getInstance()
 
     AlertDialog(
         onDismissRequest = onDismiss,

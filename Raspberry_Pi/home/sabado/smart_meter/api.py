@@ -243,6 +243,8 @@ def update_schedule(schedule_id):
             updated_fields['duration_seconds'] = data['duration_seconds']
         if 'days_of_week' in data:
             updated_fields['days_of_week'] = data['days_of_week']
+        if 'enabled' in data:
+            updated_fields['enabled'] = int(data['enabled'])
 
         # Update in database
         db.update_schedule(schedule_id, **updated_fields)

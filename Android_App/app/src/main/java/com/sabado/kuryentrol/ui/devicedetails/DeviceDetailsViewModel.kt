@@ -8,13 +8,10 @@ import com.sabado.kuryentrol.data.model.Schedule
 import com.sabado.kuryentrol.data.model.Threshold
 import com.sabado.kuryentrol.data.repository.DeviceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import java.text.SimpleDateFormat
+import java.util.*
 import javax.inject.Inject
 
 data class GraphDataPoint(
@@ -54,8 +51,13 @@ class DeviceDetailsViewModel @Inject constructor(
     val threshold: StateFlow<Threshold?> = _threshold.asStateFlow()
 
     // Price per kWh for bill calculation (make this configurable in settings later)
-    private val _pricePerKwh = MutableStateFlow(0.12f) // Default $0.12 per kWh
+    private val _pricePerKwh = MutableStateFlow(10.00f) // Default ₱10.00 per kWh
     val pricePerKwh: StateFlow<Float> = _pricePerKwh.asStateFlow()
+
+    // Date format for parsing timestamps
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
 
     // Combined graph data based on readings and selected period
     val graphData: StateFlow<List<GraphDataPoint>> = combine(
@@ -65,7 +67,7 @@ class DeviceDetailsViewModel @Inject constructor(
         processReadingsForGraph(readings, period)
     }.stateIn(
         scope = viewModelScope,
-        started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
 
@@ -77,7 +79,7 @@ class DeviceDetailsViewModel @Inject constructor(
         calculateTotalConsumption(readings, period)
     }.stateIn(
         scope = viewModelScope,
-        started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.WhileSubscribed(5000),
         initialValue = 0f
     )
 
@@ -89,11 +91,9 @@ class DeviceDetailsViewModel @Inject constructor(
         consumption * price
     }.stateIn(
         scope = viewModelScope,
-        started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.WhileSubscribed(5000),
         initialValue = 0f
     )
-
-    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 
     init {
         loadDeviceData()
@@ -149,73 +149,168 @@ class DeviceDetailsViewModel @Inject constructor(
         if (readings.isEmpty()) return emptyList()
 
         // Filter readings based on period
-        val now = LocalDateTime.now()
         val filteredReadings = readings.filter { reading ->
             try {
-                val timestamp = LocalDateTime.parse(reading.timestamp, dateFormatter)
+                val timestamp = dateFormat.parse(reading.timestamp) ?: return@filter false
+                val readingCal = Calendar.getInstance().apply { time = timestamp }
+
                 when (period) {
-                    TimePeriod.DAILY -> timestamp.isAfter(now.minusDays(1))
-                    TimePeriod.WEEKLY -> timestamp.isAfter(now.minusWeeks(1))
-                    TimePeriod.MONTHLY -> timestamp.isAfter(now.minusMonths(1))
+                    TimePeriod.DAILY -> {
+                        val oneDayAgo = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                        readingCal.after(oneDayAgo)
+                    }
+                    TimePeriod.WEEKLY -> {
+                        val oneWeekAgo = Calendar.getInstance().apply { add(Calendar.WEEK_OF_YEAR, -1) }
+                        readingCal.after(oneWeekAgo)
+                    }
+                    TimePeriod.MONTHLY -> {
+                        val oneMonthAgo = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
+                        readingCal.after(oneMonthAgo)
+                    }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 false
             }
         }
 
-        if (filteredReadings.isEmpty()) return emptyList()
-
         // Group readings and calculate consumption deltas
         return when (period) {
-            TimePeriod.DAILY -> groupByHour(filteredReadings)
-            TimePeriod.WEEKLY -> groupByDay(filteredReadings)
-            TimePeriod.MONTHLY -> groupByDay(filteredReadings)
+            TimePeriod.DAILY -> groupByHourWithEmptySlots(filteredReadings)
+            TimePeriod.WEEKLY -> groupByDayOfWeek(filteredReadings)
+            TimePeriod.MONTHLY -> groupByDateInMonth(filteredReadings)
         }
     }
 
-    private fun groupByHour(readings: List<EnergyReading>): List<GraphDataPoint> {
-        val grouped = readings.groupBy { reading ->
-            try {
-                val timestamp = LocalDateTime.parse(reading.timestamp, dateFormatter)
-                timestamp.hour
-            } catch (e: Exception) {
-                -1
-            }
-        }.filter { it.key != -1 }
 
-        return grouped.mapNotNull { (hour, hourReadings) ->
-            if (hourReadings.size < 2) return@mapNotNull null
-            val first = hourReadings.first()
-            val last = hourReadings.last()
-            val consumption = last.energy_kwh - first.energy_kwh
-            GraphDataPoint(
-                label = "${hour}h",
-                value = maxOf(consumption, 0f)
-            )
-        }.sortedBy { it.label }
+    private fun groupByHourWithEmptySlots(readings: List<EnergyReading>): List<GraphDataPoint> {
+        val now = Calendar.getInstance()
+        val currentHour = now.get(Calendar.HOUR_OF_DAY)
+
+        // Create all 24 hour slots
+        val allHours = (0..23).associateWith { mutableListOf<EnergyReading>() }.toMutableMap()
+
+        // Group readings by hour
+        readings.forEach { reading ->
+            try {
+                val timestamp = dateFormat.parse(reading.timestamp) ?: return@forEach
+                val cal = Calendar.getInstance().apply { time = timestamp }
+                val hour = cal.get(Calendar.HOUR_OF_DAY)
+                allHours[hour]?.add(reading)
+            } catch (_: Exception) {
+                // Skip invalid readings
+            }
+        }
+
+        // Calculate consumption for each hour, in order from 8 hours ago to now
+        val result = mutableListOf<GraphDataPoint>()
+        for (i in 0..23) {
+            val hour = (currentHour - 23 + i + 24) % 24
+            val hourReadings = allHours[hour] ?: continue
+
+            if (hourReadings.size >= 2) {
+                val first = hourReadings.first()
+                val last = hourReadings.last()
+                val consumption = last.energyKwh - first.energyKwh
+                result.add(GraphDataPoint(
+                    label = String.format("%02d:00", hour),
+                    value = maxOf(consumption, 0f)
+                ))
+            } else {
+                // Add zero for missing data
+                result.add(GraphDataPoint(
+                    label = String.format("%02d:00", hour),
+                    value = 0f
+                ))
+            }
+        }
+
+        return result
     }
 
-    private fun groupByDay(readings: List<EnergyReading>): List<GraphDataPoint> {
-        val grouped = readings.groupBy { reading ->
-            try {
-                val timestamp = LocalDateTime.parse(reading.timestamp, dateFormatter)
-                timestamp.toLocalDate()
-            } catch (e: Exception) {
-                null
-            }
-        }.filter { it.key != null }
+    private fun groupByDayOfWeek(readings: List<EnergyReading>): List<GraphDataPoint> {
+        val now = Calendar.getInstance()
 
-        return grouped.mapNotNull { (date, dayReadings) ->
-            if (dayReadings.size < 2 || date == null) return@mapNotNull null
-            val first = dayReadings.first()
-            val last = dayReadings.last()
-            val consumption = last.energy_kwh - first.energy_kwh
-            GraphDataPoint(
-                label = "${date.monthValue}/${date.dayOfMonth}",
-                value = maxOf(consumption, 0f)
-            )
-        }.sortedBy { it.label }
+        // Create map for 7 days (today back to 6 days ago)
+        val daysMap = mutableMapOf<String, MutableList<EnergyReading>>()
+        val dayLabels = mutableListOf<Pair<String, Int>>() // (label, dayOffset)
+
+        for (i in 6 downTo 0) {
+            val dayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -i) }
+            val dayName = dayCal.getDisplayName(Calendar.DAY_OF_WEEK, Calendar.SHORT, Locale.US) ?: ""
+            val dayKey = "${dayCal.get(Calendar.YEAR)}-${dayCal.get(Calendar.DAY_OF_YEAR)}"
+            daysMap[dayKey] = mutableListOf()
+            dayLabels.add(dayName to -i)
+        }
+
+        // Group readings by day
+        readings.forEach { reading ->
+            try {
+                val timestamp = dateFormat.parse(reading.timestamp) ?: return@forEach
+                val cal = Calendar.getInstance().apply { time = timestamp }
+                val dayKey = "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
+                daysMap[dayKey]?.add(reading)
+            } catch (_: Exception) {
+                // Skip
+            }
+        }
+
+        // Calculate consumption for each day
+        return dayLabels.mapNotNull { (label, offset) ->
+            val dayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, offset) }
+            val dayKey = "${dayCal.get(Calendar.YEAR)}-${dayCal.get(Calendar.DAY_OF_YEAR)}"
+            val dayReadings = daysMap[dayKey] ?: emptyList()
+
+            if (dayReadings.size >= 2) {
+                val first = dayReadings.first()
+                val last = dayReadings.last()
+                val consumption = last.energyKwh - first.energyKwh
+                GraphDataPoint(label = label, value = maxOf(consumption, 0f))
+            } else {
+                GraphDataPoint(label = label, value = 0f)
+            }
+        }
     }
+
+    private fun groupByDateInMonth(readings: List<EnergyReading>): List<GraphDataPoint> {
+        // Create map for last 30 days
+        val daysMap = mutableMapOf<String, MutableList<EnergyReading>>()
+        val dayLabels = mutableListOf<Pair<String, String>>() // (label, dayKey)
+
+        for (i in 29 downTo 0) {
+            val dayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -i) }
+            val label = "${dayCal.get(Calendar.MONTH) + 1}/${dayCal.get(Calendar.DAY_OF_MONTH)}"
+            val dayKey = "${dayCal.get(Calendar.YEAR)}-${dayCal.get(Calendar.DAY_OF_YEAR)}"
+            daysMap[dayKey] = mutableListOf()
+            dayLabels.add(label to dayKey)
+        }
+
+        // Group readings by day
+        readings.forEach { reading ->
+            try {
+                val timestamp = dateFormat.parse(reading.timestamp) ?: return@forEach
+                val cal = Calendar.getInstance().apply { time = timestamp }
+                val dayKey = "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
+                daysMap[dayKey]?.add(reading)
+            } catch (_: Exception) {
+                // Skip
+            }
+        }
+
+        // Calculate consumption for each day
+        return dayLabels.map { (label, dayKey) ->
+            val dayReadings = daysMap[dayKey] ?: emptyList()
+
+            if (dayReadings.size >= 2) {
+                val first = dayReadings.first()
+                val last = dayReadings.last()
+                val consumption = last.energyKwh - first.energyKwh
+                GraphDataPoint(label = label, value = maxOf(consumption, 0f))
+            } else {
+                GraphDataPoint(label = label, value = 0f)
+            }
+        }
+    }
+
 
     private fun calculateTotalConsumption(
         readings: List<EnergyReading>,
@@ -223,16 +318,26 @@ class DeviceDetailsViewModel @Inject constructor(
     ): Float {
         if (readings.isEmpty()) return 0f
 
-        val now = LocalDateTime.now()
         val filteredReadings = readings.filter { reading ->
             try {
-                val timestamp = LocalDateTime.parse(reading.timestamp, dateFormatter)
+                val timestamp = dateFormat.parse(reading.timestamp) ?: return@filter false
+                val readingCal = Calendar.getInstance().apply { time = timestamp }
+
                 when (period) {
-                    TimePeriod.DAILY -> timestamp.isAfter(now.minusDays(1))
-                    TimePeriod.WEEKLY -> timestamp.isAfter(now.minusWeeks(1))
-                    TimePeriod.MONTHLY -> timestamp.isAfter(now.minusMonths(1))
+                    TimePeriod.DAILY -> {
+                        val oneDayAgo = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                        readingCal.after(oneDayAgo)
+                    }
+                    TimePeriod.WEEKLY -> {
+                        val oneWeekAgo = Calendar.getInstance().apply { add(Calendar.WEEK_OF_YEAR, -1) }
+                        readingCal.after(oneWeekAgo)
+                    }
+                    TimePeriod.MONTHLY -> {
+                        val oneMonthAgo = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
+                        readingCal.after(oneMonthAgo)
+                    }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 false
             }
         }
@@ -241,7 +346,7 @@ class DeviceDetailsViewModel @Inject constructor(
 
         val first = filteredReadings.first()
         val last = filteredReadings.last()
-        return maxOf(last.energy_kwh - first.energy_kwh, 0f)
+        return maxOf(last.energyKwh - first.energyKwh, 0f)
     }
 
     fun clearError() {

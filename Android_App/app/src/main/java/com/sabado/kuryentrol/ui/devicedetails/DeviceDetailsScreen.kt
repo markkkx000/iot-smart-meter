@@ -9,7 +9,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -17,15 +16,17 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
+import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
-import com.patrykandpatrick.vico.compose.common.fill
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
+import com.patrykandpatrick.vico.core.cartesian.layer.ColumnCartesianLayer
 import com.patrykandpatrick.vico.core.common.shape.Shape
-import com.sabado.kuryentrol.data.model.EnergyReading
 import com.sabado.kuryentrol.data.model.Schedule
 import com.sabado.kuryentrol.data.model.Threshold
+import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
+import com.patrykandpatrick.vico.core.cartesian.AutoScrollCondition
+import com.patrykandpatrick.vico.core.cartesian.Scroll
 
 /**
  * Device Details Screen with graph visualization
@@ -199,7 +200,7 @@ fun EnergyGraphCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = String.format("$%.2f", energyBill),
+                        text = "₱${String.format("%.2f", energyBill)}", // Changed $ to ₱
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.secondary
                     )
@@ -207,7 +208,7 @@ fun EnergyGraphCard(
             }
 
             Text(
-                text = "(Rate: $${String.format("%.2f", pricePerKwh)}/kWh)",
+                text = "(Rate: ₱${String.format("%.2f", pricePerKwh)}/kWh)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
@@ -248,6 +249,13 @@ fun EnergyChart(
 ) {
     val modelProducer = remember { CartesianChartModelProducer() }
 
+    val scrollState = rememberVicoScrollState(
+        scrollEnabled = true,
+        initialScroll = Scroll.Absolute.End,  // Start at the end (right side)
+        autoScroll = Scroll.Absolute.End,      // Auto-scroll to end
+        autoScrollCondition = AutoScrollCondition.OnModelSizeIncreased // Auto-scroll when data changes
+    )
+
     LaunchedEffect(data) {
         modelProducer.runTransaction {
             columnSeries {
@@ -256,25 +264,36 @@ fun EnergyChart(
         }
     }
 
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+
     CartesianChartHost(
         chart = rememberCartesianChart(
             rememberColumnCartesianLayer(
-                columnProvider = {
-                    rememberShapeComponent(
-                        shape = Shape.rounded(allPercent = 40),
-                        fill = fill(MaterialTheme.colorScheme.primary)
+                columnProvider = ColumnCartesianLayer.ColumnProvider.series(
+                    rememberLineComponent(
+                        color = primaryColor,
+                        thickness = 16.dp,
+                        shape = Shape.rounded(allPercent = 40)
                     )
-                }
+                )
             ),
-            startAxis = rememberStartAxis(),
+            startAxis = rememberStartAxis(
+                label = rememberTextComponent(
+                    color = onSurfaceColor
+                )
+            ),
             bottomAxis = rememberBottomAxis(
-                label = rememberTextComponent(),
+                label = rememberTextComponent(
+                    color = onSurfaceColor
+                ),
                 valueFormatter = { value, _, _ ->
                     data.getOrNull(value.toInt())?.label ?: ""
                 }
             )
         ),
         modelProducer = modelProducer,
+        scrollState = scrollState,
         modifier = modifier
     )
 }
@@ -294,10 +313,10 @@ fun ThresholdCard(threshold: Threshold?) {
             Spacer(modifier = Modifier.height(8.dp))
 
             if (threshold != null) {
-                Text("Limit: ${threshold.limit_kwh} kWh")
-                Text("Reset Period: ${threshold.reset_period}")
+                Text("Limit: ${threshold.limitKwh} kWh")
+                Text("Reset Period: ${threshold.resetPeriod}")
                 Text("Status: ${if (threshold.enabled == 1) "Enabled" else "Disabled"}")
-                Text("Last Reset: ${threshold.last_reset}")
+                Text("Last Reset: ${threshold.lastReset}")
             } else {
                 Text(
                     text = "No threshold configured",

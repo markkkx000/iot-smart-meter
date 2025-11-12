@@ -2,8 +2,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    
-    // --- PHASE 1 ADDITIONS ---
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
 }
@@ -59,9 +57,7 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-    
-    // --- PHASE 1 ADDITIONS ---
-    
+
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
@@ -80,8 +76,7 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
 
     // MQTT
-    implementation(libs.paho.mqtt.client)
-    implementation(libs.paho.mqtt.android.service)
+    implementation(libs.paho.mqtt.android)
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)

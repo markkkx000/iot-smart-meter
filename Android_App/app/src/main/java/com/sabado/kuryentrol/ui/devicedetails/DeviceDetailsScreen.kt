@@ -9,14 +9,26 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottomAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
+import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
+import com.patrykandpatrick.vico.compose.common.fill
+import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
+import com.patrykandpatrick.vico.core.common.shape.Shape
 import com.sabado.kuryentrol.data.model.EnergyReading
 import com.sabado.kuryentrol.data.model.Schedule
 import com.sabado.kuryentrol.data.model.Threshold
 
 /**
- * Device Details Screen showing energy readings, schedules, and thresholds
+ * Device Details Screen with graph visualization
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,7 +38,11 @@ fun DeviceDetailsScreen(
 ) {
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
-    val energyReadings by viewModel.energyReadings.collectAsState()
+    val graphData by viewModel.graphData.collectAsState()
+    val selectedPeriod by viewModel.selectedPeriod.collectAsState()
+    val totalConsumption by viewModel.totalConsumption.collectAsState()
+    val energyBill by viewModel.energyBill.collectAsState()
+    val pricePerKwh by viewModel.pricePerKwh.collectAsState()
     val schedules by viewModel.schedules.collectAsState()
     val threshold by viewModel.threshold.collectAsState()
     val clientId = viewModel.getClientId()
@@ -70,9 +86,22 @@ fun DeviceDetailsScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Energy Summary Card
+                    // Time Period Selector
                     item {
-                        EnergySummaryCard(energyReadings)
+                        TimePeriodSelector(
+                            selectedPeriod = selectedPeriod,
+                            onPeriodSelected = { viewModel.selectPeriod(it) }
+                        )
+                    }
+
+                    // Energy Graph Card
+                    item {
+                        EnergyGraphCard(
+                            graphData = graphData,
+                            totalConsumption = totalConsumption,
+                            energyBill = energyBill,
+                            pricePerKwh = pricePerKwh
+                        )
                     }
 
                     // Threshold Card
@@ -101,29 +130,6 @@ fun DeviceDetailsScreen(
                             ScheduleCard(schedule)
                         }
                     }
-
-                    // Energy Readings Section
-                    item {
-                        Text(
-                            text = "Recent Energy Readings",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-
-                    if (energyReadings.isEmpty()) {
-                        item {
-                            Text(
-                                text = "No energy readings available",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } else {
-                        items(energyReadings.take(20)) { reading ->
-                            EnergyReadingCard(reading)
-                        }
-                    }
                 }
             }
         }
@@ -131,7 +137,32 @@ fun DeviceDetailsScreen(
 }
 
 @Composable
-fun EnergySummaryCard(readings: List<EnergyReading>) {
+fun TimePeriodSelector(
+    selectedPeriod: TimePeriod,
+    onPeriodSelected: (TimePeriod) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        TimePeriod.entries.forEach { period ->
+            FilterChip(
+                selected = selectedPeriod == period,
+                onClick = { onPeriodSelected(period) },
+                label = { Text(period.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+fun EnergyGraphCard(
+    graphData: List<GraphDataPoint>,
+    totalConsumption: Float,
+    energyBill: Float,
+    pricePerKwh: Float
+) {
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -139,27 +170,113 @@ fun EnergySummaryCard(readings: List<EnergyReading>) {
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = "Energy Summary",
+                text = "Energy Consumption",
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (readings.isNotEmpty()) {
-                val latestReading = readings.last()
-                val firstReading = readings.first()
-                val totalConsumption = latestReading.energyKwh - firstReading.energyKwh
+            // Stats Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = "Total Consumption",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = String.format("%.3f kWh", totalConsumption),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "Estimated Bill",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = String.format("$%.2f", energyBill),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
 
-                Text("Latest Reading: ${latestReading.energyKwh} kWh")
-                Text("Total Consumption: ${"%%.3f".format(totalConsumption)} kWh")
-                Text("Number of Readings: ${readings.size}")
-            } else {
-                Text(
-                    text = "No data available",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            Text(
+                text = "(Rate: $${String.format("%.2f", pricePerKwh)}/kWh)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Graph
+            if (graphData.isNotEmpty()) {
+                EnergyChart(
+                    data = graphData,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
                 )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No data available for this period",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+fun EnergyChart(
+    data: List<GraphDataPoint>,
+    modifier: Modifier = Modifier
+) {
+    val modelProducer = remember { CartesianChartModelProducer() }
+
+    LaunchedEffect(data) {
+        modelProducer.runTransaction {
+            columnSeries {
+                series(data.map { it.value })
+            }
+        }
+    }
+
+    CartesianChartHost(
+        chart = rememberCartesianChart(
+            rememberColumnCartesianLayer(
+                columnProvider = {
+                    rememberShapeComponent(
+                        shape = Shape.rounded(allPercent = 40),
+                        fill = fill(MaterialTheme.colorScheme.primary)
+                    )
+                }
+            ),
+            startAxis = rememberStartAxis(),
+            bottomAxis = rememberBottomAxis(
+                label = rememberTextComponent(),
+                valueFormatter = { value, _, _ ->
+                    data.getOrNull(value.toInt())?.label ?: ""
+                }
+            )
+        ),
+        modelProducer = modelProducer,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -177,10 +294,10 @@ fun ThresholdCard(threshold: Threshold?) {
             Spacer(modifier = Modifier.height(8.dp))
 
             if (threshold != null) {
-                Text("Limit: ${threshold.limitKwh} kWh")
-                Text("Reset Period: ${threshold.resetPeriod}")
+                Text("Limit: ${threshold.limit_kwh} kWh")
+                Text("Reset Period: ${threshold.reset_period}")
                 Text("Status: ${if (threshold.enabled == 1) "Enabled" else "Disabled"}")
-                Text("Last Reset: ${threshold.lastReset}")
+                Text("Last Reset: ${threshold.last_reset}")
             } else {
                 Text(
                     text = "No threshold configured",
@@ -224,7 +341,6 @@ fun ScheduleCard(schedule: Schedule) {
                         Text("Days: $it")
                     }
                 }
-
                 "timer" -> {
                     schedule.durationSeconds?.let {
                         val hours = it / 3600
@@ -233,29 +349,6 @@ fun ScheduleCard(schedule: Schedule) {
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun EnergyReadingCard(reading: EnergyReading) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = reading.timestamp,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                text = "${reading.energyKwh} kWh",
-                style = MaterialTheme.typography.bodyMedium
-            )
         }
     }
 }

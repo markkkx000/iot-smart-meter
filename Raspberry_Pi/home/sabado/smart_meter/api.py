@@ -6,7 +6,7 @@ import logging
 import subprocess
 import os
 from database import Database
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for Android app
@@ -393,22 +393,27 @@ def get_energy_data(client_id):
 
         with db.get_connection() as conn:
             if period:
-                # Get aggregated consumption for period
+                # Get current time in UTC
+                now_utc = datetime.now(timezone.utc)
+                
                 if period == 'day':
-                    period_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                    period_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
                 elif period == 'week':
-                    days_since_monday = datetime.now().weekday()
-                    period_start = (datetime.now() - timedelta(days=days_since_monday)).replace(
+                    days_since_monday = now_utc.weekday()
+                    period_start = (now_utc - timedelta(days=days_since_monday)).replace(
                         hour=0, minute=0, second=0, microsecond=0
                     )
                 elif period == 'month':
-                    period_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    period_start = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
                 else:
                     return jsonify({
                         'success': False,
                         'error': 'Invalid period. Use "day", "week", or "month"'
                     }), 400
 
+                # Convert to naive datetime (remove timezone info) since DB stores naive UTC
+                period_start = period_start.replace(tzinfo=None)
+                
                 consumption = db.get_consumption_since(client_id, period_start)
 
                 return jsonify({
@@ -443,6 +448,22 @@ def get_energy_data(client_id):
             'error': str(e)
         }), 500
 
+@app.route('/api/energy/<client_id>/range')
+def get_energy_readings_by_range(client_id):
+    start = request.args.get('start')
+    end = request.args.get('end')
+    with db.get_connection() as conn:
+        cursor = conn.execute('''
+            SELECT energy_kwh, timestamp FROM energy_readings
+            WHERE client_id = ? AND timestamp >= ? AND timestamp <= ?
+            ORDER BY timestamp ASC
+        ''', (client_id, start, end))
+        readings = [dict(row) for row in cursor.fetchall()]
+    return jsonify({
+        'success': True,
+        'client_id': client_id,
+        'readings': readings
+    })
 
 # ============= DEVICES ENDPOINT =============
 

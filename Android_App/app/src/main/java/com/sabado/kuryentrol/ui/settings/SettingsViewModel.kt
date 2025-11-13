@@ -13,7 +13,7 @@ data class SettingsUiState(
     val brokerPort: String = "",
     val apiIp: String = "",
     val apiPort: String = "",
-    val pricePerKwh: String = "", // String for easier input validation
+    val pricePerKwh: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )

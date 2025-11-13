@@ -172,16 +172,35 @@ class Database:
             ''', (client_id, energy_kwh))
 
     def get_consumption_since(self, client_id, start_time):
-        """Get energy consumption since timestamp"""
+        """Get energy consumption since timestamp, handling meter resets"""
         with self.get_connection() as conn:
             cursor = conn.execute('''
-                SELECT MAX(energy_kwh) - MIN(energy_kwh) as consumption
-                FROM energy_readings
+                SELECT energy_kwh, timestamp 
+                FROM energy_readings 
                 WHERE client_id = ? AND timestamp >= ?
-            ''', (client_id, start_time))
-
-            row = cursor.fetchone()
-            return row['consumption'] if row['consumption'] else 0.0
+                ORDER BY timestamp ASC
+            ''', (client_id, start_time.strftime('%Y-%m-%d %H:%M:%S')))
+            
+            readings = cursor.fetchall()
+            
+            if len(readings) < 2:
+                return 0.0
+            
+            # Sum consumption between consecutive readings
+            total_consumption = 0.0
+            prev_kwh = readings[0]['energy_kwh']
+            
+            for reading in readings[1:]:
+                current_kwh = reading['energy_kwh']
+                delta = current_kwh - prev_kwh
+                
+                # Only count positive deltas (skip meter resets)
+                if delta > 0:
+                    total_consumption += delta
+                
+                prev_kwh = current_kwh
+            
+            return total_consumption
 
     def log_schedule_execution(self, schedule_id, action):
         """Log schedule execution"""

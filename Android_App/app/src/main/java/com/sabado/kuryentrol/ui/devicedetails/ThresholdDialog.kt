@@ -52,7 +52,7 @@ fun ThresholdDialog(
                             tint = MaterialTheme.colorScheme.error
                         )
                         Text(
-                            text = "⚠️ Once triggered, threshold auto-disables and will NOT re-enable on next reset period. You must delete and recreate to restore monitoring.",
+                            text = "Once triggered, threshold auto-disables and will NOT re-enable on next reset period. You must delete and recreate to restore monitoring.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )

@@ -1,6 +1,7 @@
 package com.sabado.kuryentrol.ui.devicedetails
 
 import android.annotation.SuppressLint
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -62,6 +63,18 @@ fun DeviceDetailsScreen(
     var editingSchedule by remember { mutableStateOf<Schedule?>(null) }
     var editingThreshold by remember { mutableStateOf(false) }
 
+    // Consumption per period
+    val dailyConsumption by viewModel.dailyConsumption.collectAsState()
+    val weeklyConsumption by viewModel.weeklyConsumption.collectAsState()
+    val monthlyConsumption by viewModel.monthlyConsumption.collectAsState()
+
+    val consumptionForThreshold = when (threshold?.resetPeriod) {
+        "daily" -> dailyConsumption
+        "weekly" -> weeklyConsumption
+        "monthly" -> monthlyConsumption
+        else -> dailyConsumption  // default to daily if threshold is null
+    }
+
     // Show error message
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -121,7 +134,7 @@ fun DeviceDetailsScreen(
                     item {
                         ThresholdCard(
                             threshold = threshold,
-                            currentConsumption = totalConsumption,
+                            currentConsumption = consumptionForThreshold,
                             onAddClick = { showThresholdDialog = true },
                             onEditClick = {
                                 editingThreshold = true
@@ -339,6 +352,12 @@ fun EnergyChart(
     )
 
     LaunchedEffect(data) {
+        Log.d("EnergyChartDebug", "Graph data points:")
+        data.forEach { point ->
+            Log.d("EnergyChartDebug", "Label=${point.label}, kWh=${point.value}")
+        }
+        val total = data.sumOf { it.value.toDouble() }
+        Log.d("EnergyChartDebug", "Total graphed value: $total kWh")
         modelProducer.runTransaction {
             columnSeries {
                 series(data.map { it.value })
@@ -386,7 +405,7 @@ fun ThresholdCard(
     threshold: Threshold?,
     currentConsumption: Float,
     onAddClick: () -> Unit,
-    onEditClick: () -> Unit,  // Add this
+    onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     Card(

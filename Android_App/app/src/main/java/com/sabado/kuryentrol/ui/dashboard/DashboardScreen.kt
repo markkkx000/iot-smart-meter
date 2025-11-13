@@ -1,5 +1,6 @@
 package com.sabado.kuryentrol.ui.dashboard
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +13,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sabado.kuryentrol.data.model.PzemMetrics
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 
 /**
  * DashboardScreen: displays a real-time list of devices, their statuses, relay switches, and metrics
@@ -81,52 +87,127 @@ fun DeviceCard(
     onRelayToggle: (Boolean) -> Unit,
     onClick: () -> Unit
 ) {
+    val isOnline = status == "Online"
+    val buttonColor = if (relayState && isOnline)
+        MaterialTheme.colorScheme.primary
+    else
+        MaterialTheme.colorScheme.surfaceVariant
+    val glyphColor = if (relayState && isOnline)
+        Color.Yellow
+    else
+        Color.Gray
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // Left side: Device info
+            Column(
+                modifier = Modifier.weight(1f)
             ) {
+                // Client ID
                 Text(
                     text = clientId,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f)
+                    style = MaterialTheme.typography.titleMedium
                 )
+
+                // Metrics
+                metrics?.let {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text("Voltage: ${it.voltage} V", style = MaterialTheme.typography.bodyMedium)
+                    Text("Current: ${it.current} A", style = MaterialTheme.typography.bodyMedium)
+                    Text("Power: ${it.power} W", style = MaterialTheme.typography.bodyMedium)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = if (status == "Online") "●" else "○",
-                    color = if (status == "Online") Color(0xFF388E3C) else Color(0xFFD32F2F),
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-                Text(text = status, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 6.dp))
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Relay:", Modifier.width(48.dp))
-                Switch(
-                    checked = relayState,
-                    onCheckedChange = onRelayToggle,
-                    enabled = (status == "Online")
-                )
-                Text(
-                    text = if (relayState) "ON" else "OFF",
-                    modifier = Modifier.padding(start = 6.dp)
+                    text = "Tap for details",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
-            metrics?.let {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text("Voltage: ${it.voltage} V")
-                Text("Current: ${it.current} A")
-                Text("Power: ${it.power} W")
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Right side: Status and Power Button (vertical)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Status indicator
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = if (isOnline) "●" else "○",
+                        color = if (isOnline) Color(0xFF388E3C) else Color(0xFFD32F2F)
+                    )
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
+                }
+
+                // Power Button
+                FloatingActionButton(
+                    onClick = {
+                        if (isOnline) {
+                            onRelayToggle(!relayState)
+                        }
+                    },
+                    modifier = Modifier
+                        .size(56.dp)
+                        .offset(y = 28.dp),
+                    containerColor = buttonColor,
+                    contentColor = glyphColor,
+                    elevation = FloatingActionButtonDefaults.elevation(
+                        defaultElevation = 10.dp
+                    )
+                ) {
+                    PowerGlyph(color = glyphColor)
+                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Tap for details",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
         }
+    }
+}
+
+@Composable
+private fun PowerGlyph(color: Color) {
+    Canvas(modifier = Modifier.size(24.dp)) {
+        val w = size.width
+        val h = size.height
+        val strokeW = w * 0.12f
+        val cx = w / 2f
+        val startY = h * 0.15f
+        val midY = h * 0.55f
+
+        drawLine(
+            color = color,
+            start = Offset(cx, startY),
+            end = Offset(cx, midY),
+            strokeWidth = strokeW,
+            cap = StrokeCap.Round
+        )
+
+        val arcRadius = w * 0.32f
+        val arcTop = h * 0.25f
+
+        drawArc(
+            color = color,
+            startAngle = 305f,
+            sweepAngle = 290f,
+            useCenter = false,
+            topLeft = Offset(cx - arcRadius, arcTop),
+            size = androidx.compose.ui.geometry.Size(arcRadius * 2, arcRadius * 2),
+            style = Stroke(width = strokeW, cap = StrokeCap.Round)
+        )
     }
 }

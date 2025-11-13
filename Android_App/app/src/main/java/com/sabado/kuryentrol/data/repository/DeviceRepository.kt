@@ -56,6 +56,39 @@ class DeviceRepository @Inject constructor(
         }
     }
 
+    suspend fun getEnergyReadingsByRange(
+        clientId: String,
+        start: String,
+        end: String
+    ): Result<List<EnergyReading>> {
+        return try {
+            val response = apiService.getEnergyReadingsByRange(clientId, start, end)
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.success(response.body()!!.readings)
+            } else {
+                Result.failure(Exception("Failed to fetch readings"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getAggregateConsumption(
+        clientId: String,
+        period: String
+    ): Result<Float> {
+        return try {
+            val response = apiService.getAggregateConsumption(clientId, period)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!.consumptionKwh)
+            } else {
+                Result.failure(Exception("Failed to fetch aggregate consumption: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getSchedules(clientId: String): Result<List<Schedule>> {
         return try {
             val response = apiService.getSchedules(clientId)

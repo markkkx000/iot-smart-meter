@@ -23,6 +23,21 @@ interface ApiService {
         @Query("period") period: String? = null
     ): Response<EnergyResponse>
 
+    @GET("energy/{clientId}/range")
+    suspend fun getEnergyReadingsByRange(
+        @Path("clientId") clientId: String,
+        @Query("start") start: String,
+        @Query("end") end: String
+    ): Response<EnergyReadingsResponse>
+
+
+    @GET("energy/{clientId}")
+    suspend fun getAggregateConsumption(
+        @Path("clientId") clientId: String,
+        @Query("period") period: String
+    ): Response<AggregateConsumptionResponse>
+
+
     @GET("schedules/{clientId}")
     suspend fun getSchedules(
         @Path("clientId") clientId: String

@@ -3,8 +3,10 @@ package com.sabado.kuryentrol.ui.devicedetails
 import android.annotation.SuppressLint
 import android.app.TimePickerDialog
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -125,7 +127,7 @@ fun ScheduleDialog(
 
                         // Days of Week
                         Text(
-                            text = "Days of Week (0=Monday, 6=Sunday)",
+                            text = "Days of Week",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -133,20 +135,43 @@ fun ScheduleDialog(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-                            dayLabels.forEachIndexed { index, label ->
-                                FilterChip(
-                                    selected = selectedDays.contains(index),
+                            val displayOrder = listOf(6, 0, 1, 2, 3, 4, 5)  // Sunday first
+                            val dayLabels = listOf("S", "M", "T", "W", "T", "F", "S")
+
+                            displayOrder.forEachIndexed { displayIndex, actualIndex ->
+                                val isSelected = selectedDays.contains(actualIndex)
+
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1f),  // Makes it square, then circle shape makes it circular
+                                    shape = CircleShape,
+                                    color = if (isSelected)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.surfaceVariant,
                                     onClick = {
-                                        selectedDays = if (selectedDays.contains(index)) {
-                                            selectedDays - index
+                                        selectedDays = if (selectedDays.contains(actualIndex)) {
+                                            selectedDays - actualIndex
                                         } else {
-                                            selectedDays + index
+                                            selectedDays + actualIndex
                                         }
-                                    },
-                                    label = { Text(label, style = MaterialTheme.typography.bodySmall) },
-                                    modifier = Modifier.weight(1f)
-                                )
+                                    }
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Text(
+                                            text = dayLabels[displayIndex],
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (isSelected)
+                                                MaterialTheme.colorScheme.onPrimary
+                                            else
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

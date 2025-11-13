@@ -6,7 +6,6 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -15,9 +14,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
-/**
- * Hilt module for providing Retrofit and API dependencies
- */
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
@@ -43,14 +39,14 @@ object NetworkModule {
         okHttpClient: OkHttpClient,
         settingsRepository: SettingsRepository
     ): Retrofit {
-        // Get the API URL from settings
-        // This is blocking, needs to be synchronous
-        val apiUrl = runBlocking {
-            settingsRepository.apiUrl.first()
-        }
+        val settings = runBlocking { settingsRepository.getSettings() }
 
-        // Ensure URL ends with a slash
-        val baseUrl = if (apiUrl.endsWith("/")) apiUrl else "$apiUrl/"
+        // Compose baseUrl for API
+        val ip = settings.apiIp.takeIf { it.isNotBlank() } ?: "127.0.0.1"
+        val port = settings.apiPort.takeIf { it.isNotBlank() } ?: "5001"
+        val baseUrl = "http://$ip:$port/api/"
+
+//        val baseUrl = if (baseUrlRaw.endsWith("/")) baseUrlRaw else "$baseUrlRaw/"
 
         return Retrofit.Builder()
             .baseUrl(baseUrl)

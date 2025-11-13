@@ -1,110 +1,100 @@
 package com.sabado.kuryentrol.ui.settings
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val brokerUrl by viewModel.brokerUrl.collectAsState()
-    val apiUrl by viewModel.apiUrl.collectAsState()
-    val saveSuccess by viewModel.saveSuccess.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val state by viewModel.uiState.collectAsState()
 
-    val snackbarHostState = remember { SnackbarHostState() }
-    val focusManager = LocalFocusManager.current
+    val isLoading = state.isLoading
 
-    // Show success message
-    LaunchedEffect(saveSuccess) {
-        if (saveSuccess) {
-            snackbarHostState.showSnackbar(
-                message = "Settings saved successfully!",
-                duration = SnackbarDuration.Short
-            )
-            viewModel.resetSaveSuccess()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Broker Settings", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = state.brokerIp,
+            onValueChange = viewModel::onBrokerIpChanged,
+            label = { Text("Broker IP Address") },
+            modifier = Modifier
+                .fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+        )
+        OutlinedTextField(
+            value = state.brokerPort,
+            onValueChange = viewModel::onBrokerPortChanged,
+            label = { Text("Broker Port") },
+            modifier = Modifier
+                .fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("API Settings", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = state.apiIp,
+            onValueChange = viewModel::onApiIpChanged,
+            label = { Text("API IP Address") },
+            modifier = Modifier
+                .fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+        )
+        OutlinedTextField(
+            value = state.apiPort,
+            onValueChange = viewModel::onApiPortChanged,
+            label = { Text("API Port") },
+            modifier = Modifier
+                .fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Energy Price", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = state.pricePerKwh,
+            onValueChange = viewModel::onPricePerKwhChanged,
+            label = { Text("Price per kWh (₱)") },
+            modifier = Modifier
+                .fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            enabled = !isLoading,
+            onClick = { viewModel.saveSettings() },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Save Settings")
         }
-    }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") }
+        Spacer(Modifier.height(12.dp))
+
+        state.errorMessage?.let { error ->
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-        if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = "Connection Settings",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-
-                OutlinedTextField(
-                    value = brokerUrl,
-                    onValueChange = { viewModel.updateBrokerUrl(it) },
-                    label = { Text("MQTT Broker URL") },
-                    placeholder = { Text("tcp://mqttpi.local:1883") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                Text(
-                    text = "Example: tcp://192.168.1.100:1883 or tcp://mqttpi.local:1883",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                OutlinedTextField(
-                    value = apiUrl,
-                    onValueChange = { viewModel.updateApiUrl(it) },
-                    label = { Text("REST API URL") },
-                    placeholder = { Text("http://mqttpi.local:5001/api") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                Text(
-                    text = "Example: http://192.168.1.100:5001/api or http://mqttpi.local:5001/api",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = {
-                        focusManager.clearFocus() // Hide keyboard first
-                        viewModel.saveSettings()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Save Settings")
-                }
-            }
         }
     }
 }

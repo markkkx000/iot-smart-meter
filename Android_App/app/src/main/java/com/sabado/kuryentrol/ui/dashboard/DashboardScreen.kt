@@ -93,7 +93,7 @@ fun DeviceCard(
     else
         MaterialTheme.colorScheme.surfaceVariant
     val glyphColor = if (relayState && isOnline)
-        Color.Yellow
+        Color.Black
     else
         Color.Gray
 

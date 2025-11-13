@@ -1,65 +1,67 @@
 package com.sabado.kuryentrol.data.repository
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+data class SettingsData(
+    val brokerIp: String = "",
+    val brokerPort: String = "",
+    val apiIp: String = "",
+    val apiPort: String = "",
+    val pricePerKwh: Float = 10f
+)
 
-/**
- * Repository for managing app settings using DataStore
- * Stores MQTT broker URL and REST API URL
- */
 @Singleton
 class SettingsRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+
+    private val Context.dataStore by preferencesDataStore(name = "settings")
+
     companion object {
-        private val BROKER_URL_KEY = stringPreferencesKey("broker_url")
-        private val API_URL_KEY = stringPreferencesKey("api_url")
-        
-        // Default values
-        const val DEFAULT_BROKER_URL = "tcp://mqttpi.local:1883"
-        const val DEFAULT_API_URL = "http://mqttpi.local:5001/api"
+        val BROKER_IP = stringPreferencesKey("broker_ip")
+        val BROKER_PORT = stringPreferencesKey("broker_port")
+        val API_IP = stringPreferencesKey("api_ip")
+        val API_PORT = stringPreferencesKey("api_port")
+        val PRICE_PER_KWH = floatPreferencesKey("price_per_kwh")
     }
-    
-    /**
-     * Get broker URL as Flow
-     */
-    val brokerUrl: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[BROKER_URL_KEY] ?: DEFAULT_BROKER_URL
+
+    val settingsFlow: Flow<SettingsData> = context.dataStore.data.map { prefs ->
+        SettingsData(
+            brokerIp = prefs[BROKER_IP] ?: "",
+            brokerPort = prefs[BROKER_PORT] ?: "",
+            apiIp = prefs[API_IP] ?: "",
+            apiPort = prefs[API_PORT] ?: "",
+            pricePerKwh = prefs[PRICE_PER_KWH] ?: 10f
+        )
     }
-    
-    /**
-     * Get API URL as Flow
-     */
-    val apiUrl: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[API_URL_KEY] ?: DEFAULT_API_URL
+
+    suspend fun getSettings(): SettingsData {
+        return settingsFlow.first()
     }
-    
-    /**
-     * Save broker URL
-     */
-    suspend fun saveBrokerUrl(url: String) {
-        context.dataStore.edit { preferences ->
-            preferences[BROKER_URL_KEY] = url
-        }
-    }
-    
-    /**
-     * Save API URL
-     */
-    suspend fun saveApiUrl(url: String) {
-        context.dataStore.edit { preferences ->
-            preferences[API_URL_KEY] = url
+
+    suspend fun saveSettings(
+        brokerIp: String,
+        brokerPort: String,
+        apiIp: String,
+        apiPort: String,
+        pricePerKwh: Float
+    ) {
+        context.dataStore.edit { prefs ->
+            prefs[BROKER_IP] = brokerIp
+            prefs[BROKER_PORT] = brokerPort
+            prefs[API_IP] = apiIp
+            prefs[API_PORT] = apiPort
+            prefs[PRICE_PER_KWH] = pricePerKwh
         }
     }
 }

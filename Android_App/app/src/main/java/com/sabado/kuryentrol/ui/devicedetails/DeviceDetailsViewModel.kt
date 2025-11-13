@@ -8,6 +8,7 @@ import com.sabado.kuryentrol.data.model.EnergyReading
 import com.sabado.kuryentrol.data.model.Schedule
 import com.sabado.kuryentrol.data.model.Threshold
 import com.sabado.kuryentrol.data.repository.DeviceRepository
+import com.sabado.kuryentrol.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -31,6 +32,7 @@ enum class TimePeriod {
 @HiltViewModel
 class DeviceDetailsViewModel @Inject constructor(
     private val deviceRepository: DeviceRepository,
+    private val settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -63,7 +65,7 @@ class DeviceDetailsViewModel @Inject constructor(
     val threshold: StateFlow<Threshold?> = _threshold.asStateFlow()
 
     // Price per kWh for bill calculation
-    private val _pricePerKwh = MutableStateFlow(10.00f)
+    private val _pricePerKwh = MutableStateFlow(10f)
     val pricePerKwh: StateFlow<Float> = _pricePerKwh.asStateFlow()
 
     // Date format for parsing timestamps
@@ -88,7 +90,19 @@ class DeviceDetailsViewModel @Inject constructor(
     private val _dailyConsumption = MutableStateFlow(0f)
     private val _weeklyConsumption = MutableStateFlow(0f)
     private val _monthlyConsumption = MutableStateFlow(0f)
-    val totalConsumption: StateFlow<Float> = _totalConsumption.asStateFlow()
+    val totalConsumption: StateFlow<Float> = combine(
+        _selectedPeriod,
+        _dailyConsumption,
+        _weeklyConsumption,
+        _monthlyConsumption
+    ) { period, daily, weekly, monthly ->
+        when (period) {
+            TimePeriod.DAILY -> daily
+            TimePeriod.WEEKLY -> weekly
+            TimePeriod.MONTHLY -> monthly
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+
     val dailyConsumption: StateFlow<Float> = _dailyConsumption.asStateFlow()
     val weeklyConsumption: StateFlow<Float> = _weeklyConsumption.asStateFlow()
     val monthlyConsumption: StateFlow<Float> = _monthlyConsumption.asStateFlow()
@@ -106,6 +120,13 @@ class DeviceDetailsViewModel @Inject constructor(
     )
 
     init {
+        viewModelScope.launch {
+            settingsRepository.settingsFlow.collectLatest { settings ->
+                _pricePerKwh.value = settings.pricePerKwh
+            }
+            refreshAllAggregates()
+        }
+
         loadDeviceData()
         loadAggregateConsumption(TimePeriod.DAILY)
     }
@@ -208,7 +229,11 @@ class DeviceDetailsViewModel @Inject constructor(
         _selectedPeriod.value = period
         viewModelScope.launch {
             loadEnergyReadings()
-            loadAggregateConsumption(period)
+            _totalConsumption.value = when (period) {
+                TimePeriod.DAILY -> _dailyConsumption.value
+                TimePeriod.WEEKLY -> _weeklyConsumption.value
+                TimePeriod.MONTHLY -> _monthlyConsumption.value
+            }
         }
     }
 
@@ -413,53 +438,49 @@ class DeviceDetailsViewModel @Inject constructor(
 
     @SuppressLint("DefaultLocale")
     private fun groupByHourWithEmptySlots(readings: List<EnergyReading>): List<GraphDataPoint> {
-        if (readings.isEmpty()) return List(24) { i ->
-            val localHour = (i + TimeZone.getDefault().rawOffset / (1000 * 60 * 60)) % 24
-            GraphDataPoint(String.format("%02d:00", localHour), 0f)
-        }
+        if (readings.isEmpty()) return emptyList()
 
-        // Ensure readings are sorted by time ascending (oldest to newest)
-        val sortedReadings = readings.sortedBy {
-            dateFormat.parse(it.timestamp)
-        }
+        val sortedReadings = readings.sortedBy { dateFormat.parse(it.timestamp) }
 
         val utcTimeZone = TimeZone.getTimeZone("UTC")
         val localTimeZone = TimeZone.getDefault()
         val nowUtc = Calendar.getInstance(utcTimeZone)
-        val todayStartUtc = nowUtc.clone() as Calendar
-        todayStartUtc.set(Calendar.HOUR_OF_DAY, 0)
-        todayStartUtc.set(Calendar.MINUTE, 0)
-        todayStartUtc.set(Calendar.SECOND, 0)
-        todayStartUtc.set(Calendar.MILLISECOND, 0)
 
+        // Start from 24 hours ago
+        val startTime = nowUtc.clone() as Calendar
+        startTime.add(Calendar.HOUR_OF_DAY, -24)
+
+        // Create 24 hour boundaries (24 hours ago to now)
         val hourMarks = (0..24).map { h ->
-            val cal = todayStartUtc.clone() as Calendar
+            val cal = startTime.clone() as Calendar
             cal.add(Calendar.HOUR_OF_DAY, h)
             cal
         }
 
+        // Find the last reading before or at each hour boundary
         val hourStartIndices = hourMarks.map { hourCal ->
             sortedReadings.indexOfLast {
-                dateFormat.parse(it.timestamp)!! < hourCal.time
+                dateFormat.parse(it.timestamp)!! <= hourCal.time
             }
         }
 
         val result = mutableListOf<GraphDataPoint>()
+
         for (i in 0 until 24) {
             val startIdx = hourStartIndices[i]
             val endIdx = hourStartIndices[i + 1]
 
-            // Only include if both indices point to valid readings and are in correct order
+            // Convert the hour mark to local time for the label
+            val localCal = Calendar.getInstance(localTimeZone).apply {
+                timeInMillis = hourMarks[i].timeInMillis
+            }
+            val localHour = localCal.get(Calendar.HOUR_OF_DAY)
+
             if (startIdx != -1 && endIdx != -1 && endIdx > startIdx) {
                 val first = sortedReadings[startIdx]
                 val last = sortedReadings[endIdx]
                 val consumption = last.energyKwh - first.energyKwh
 
-                // For label: convert UTC hour mark to local time
-                val localCal = Calendar.getInstance(localTimeZone).apply {
-                    timeInMillis = hourMarks[i].timeInMillis
-                }
-                val localHour = localCal.get(Calendar.HOUR_OF_DAY)
                 result.add(
                     GraphDataPoint(
                         label = String.format("%02d:00", localHour),
@@ -467,10 +488,6 @@ class DeviceDetailsViewModel @Inject constructor(
                     )
                 )
             } else {
-                val localCal = Calendar.getInstance(localTimeZone).apply {
-                    timeInMillis = hourMarks[i].timeInMillis
-                }
-                val localHour = localCal.get(Calendar.HOUR_OF_DAY)
                 result.add(
                     GraphDataPoint(
                         label = String.format("%02d:00", localHour),
@@ -479,8 +496,10 @@ class DeviceDetailsViewModel @Inject constructor(
                 )
             }
         }
-        return result.reversed()
+
+        return result
     }
+
 
     private fun groupByDayOfWeek(readings: List<EnergyReading>): List<GraphDataPoint> {
         val daysMap = mutableMapOf<String, MutableList<EnergyReading>>()

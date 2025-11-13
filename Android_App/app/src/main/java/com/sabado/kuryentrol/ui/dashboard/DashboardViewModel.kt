@@ -34,7 +34,8 @@ class DashboardViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            settingsRepository.brokerUrl.collectLatest { brokerUrl ->
+            settingsRepository.settingsFlow.collectLatest { settings ->
+                val brokerUrl = "tcp://${settings.brokerIp}:${settings.brokerPort}"
                 connectMqtt(brokerUrl)
             }
         }

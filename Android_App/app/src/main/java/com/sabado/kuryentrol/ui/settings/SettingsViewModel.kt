@@ -23,6 +23,10 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository // Implement repository to save/load DataStore or SharedPreferences
 ) : ViewModel() {
 
+    private val _saveSuccessMessage = MutableStateFlow<String?>(null)
+    val saveSuccessMessage: StateFlow<String?> = _saveSuccessMessage.asStateFlow()
+
+
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
@@ -83,13 +87,14 @@ class SettingsViewModel @Inject constructor(
                     pricePerKwh = priceFloat
                 )
                 _uiState.update { it.copy(isLoading = false, errorMessage = null) }
+                _saveSuccessMessage.value = "Settings saved successfully"
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, errorMessage = e.localizedMessage) }
             }
         }
     }
 
-    fun clearError() {
-        _uiState.update { it.copy(errorMessage = null) }
+    fun clearSaveSuccessMessage() {
+        _saveSuccessMessage.value = null
     }
 }

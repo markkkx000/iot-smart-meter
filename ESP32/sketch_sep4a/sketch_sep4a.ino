@@ -106,7 +106,7 @@ void updateDisplay() {
   display.drawStr(45, 52, powerStr);
 
   display.drawStr(0, 62, "Relay:");
-  bool relayState = (digitalRead(RELAY_PIN) == LOW);
+  bool relayState = (digitalRead(RELAY_PIN) == HIGH);
   display.drawStr(45, 62, relayState ? "ON" : "OFF");
 
   display.sendBuffer();
@@ -131,26 +131,32 @@ String energyTopic     = "dev/" + clientId + "/pzem/energy";
 
 void handleRelayCommand(const String& msg) {
   if (msg.equalsIgnoreCase("RELAY_ON")) {
-    digitalWrite(RELAY_PIN, LOW);   // active-LOW
     client.publish(relayStateTopic.c_str(), "1", true);
-    Serial.println("Relay switched ON (via commandsTopic)");
+    Serial.println("Relay command published to relay/state: ON");
   } else if (msg.equalsIgnoreCase("RELAY_OFF")) {
-    digitalWrite(RELAY_PIN, HIGH);
     client.publish(relayStateTopic.c_str(), "0", true);
-    Serial.println("Relay switched OFF (via commandsTopic)");
+    Serial.println("Relay command published to relay/state: OFF");
   }
 }
 
 void handleRelayState(const String& msg) {
   if (msg == "1") {
-    digitalWrite(RELAY_PIN, LOW);
+    WiFi.setSleep(true);
+    delay(50);
+    digitalWrite(RELAY_PIN, HIGH);
+    delay(100);               // Let transients settle
+    WiFi.setSleep(false);
     Serial.println("Relay switched ON (via relayStateTopic sync)");
   } else if (msg == "0") {
-    digitalWrite(RELAY_PIN, HIGH);
+    WiFi.setSleep(true);
+    delay(50);
+    digitalWrite(RELAY_PIN, LOW);
+    delay(100);
+    WiFi.setSleep(false);
     Serial.println("Relay switched OFF (via relayStateTopic sync)");
   } else {
     Serial.println("Invalid state, defaulting OFF");
-    digitalWrite(RELAY_PIN, HIGH);
+    digitalWrite(RELAY_PIN, LOW);
   }
 }
 

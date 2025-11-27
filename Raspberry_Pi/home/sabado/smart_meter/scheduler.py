@@ -7,7 +7,7 @@ import os
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from mqtt_client import MQTTSchedulerClient
 from database import Database
 
@@ -162,19 +162,21 @@ class SmartMeterScheduler:
 
     def calculate_period_start(self, reset_period):
         """Calculate start of reset period"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         if reset_period == 'daily':
-            return now.replace(hour=0, minute=0, second=0, microsecond=0)
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         elif reset_period == 'weekly':
             days_since_monday = now.weekday()
-            return (now - timedelta(days=days_since_monday)).replace(
+            start = (now - timedelta(days=days_since_monday)).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
         elif reset_period == 'monthly':
-            return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:
+            start = now
 
-        return now
+        return start.replace(tzinfo=None)
 
     def shutdown(self, signum, frame):
         """Graceful shutdown"""

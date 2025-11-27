@@ -42,7 +42,7 @@ unsigned long energyInterval  = 60000;  // 60 seconds
 unsigned long lastMetricsPublish = 0;
 unsigned long lastEnergyPublish  = 0;
 
-// --- Display timing --- ADD THIS SECTION
+// --- Display timing --- 
 unsigned long lastDisplayUpdate = 0;
 const unsigned long displayUpdateInterval = 1000;
 float currentPower = 0.0;
@@ -144,7 +144,7 @@ void handleRelayState(const String& msg) {
     WiFi.setSleep(true);
     delay(50);
     digitalWrite(RELAY_PIN, HIGH);
-    delay(100);               // Let transients settle
+    delay(100);
     WiFi.setSleep(false);
     Serial.println("Relay switched ON (via relayStateTopic sync)");
   } else if (msg == "0") {

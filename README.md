@@ -58,6 +58,11 @@ A distributed energy monitoring and automation system built with ESP32 microcont
 - Automatic reconnection with mDNS support for broker discovery
 - Factory reset via BOOT button (GPIO 0)
 - WiFi event handling for connection state tracking
+- **OTA (Over-The-Air) firmware updates:**
+  - Web-based firmware update interface at `http://<ESP32_IP>/update`
+  - ElegantOTA integration for easy firmware upgrades
+  - Device info page at `http://<ESP32_IP>/` showing status and OTA link
+  - No need to physically connect ESP32 for firmware updates
 
 **MQTT Topics (Published):**
 - `dev/<CLIENT_ID>/pzem/metrics` - Real-time voltage/current/power (JSON)
@@ -132,14 +137,20 @@ A distributed energy monitoring and automation system built with ESP32 microcont
 - Includes health check endpoint
 
 ### Android Application
-*(In development)*
-- Real-time dashboard with energy consumption graphs
+- Real-time dashboard with live energy consumption monitoring
 - Device discovery and status monitoring (via `dev/+/status` wildcard)
-- Schedule management (daily schedules, timers)
-- Energy threshold configuration
+- MQTT-based real-time metrics display (voltage, current, power)
 - Remote appliance control via relay switching
-- Historical data visualization
-- Push notifications for threshold alerts
+- Historical data visualization with daily/weekly/monthly graphs
+- Schedule management:
+  - Daily schedules with day-of-week filtering
+  - Timer-based schedules for countdown operations
+  - Create, update, and delete schedules via REST API
+- Energy threshold configuration with auto-shutoff
+- Device renaming with local Room database storage
+- Settings screen for broker and API URL configuration
+- Material Design 3 UI with dark theme support
+- Built with Jetpack Compose, Hilt, and MVVM architecture
 
 ## Hardware Requirements
 
@@ -190,6 +201,8 @@ BOOT Button    GPIO 0 (built-in, for factory reset)
    - PZEM-004Tv30 by Jakub Mandula
    - ArduinoJson by Benoit Blanchon
    - U8g2 by oliver
+   - ESPAsyncWebServer by me-no-dev
+   - ElegantOTA by Ayush Sharma
    - ESP32 board support (via Boards Manager)
 
 2. **Configure and upload sketch:**
@@ -707,6 +720,41 @@ Get energy readings or consumption for a device.
 
 ---
 
+#### Get Energy Readings by Date Range
+
+**GET** `/api/energy/<client_id>/range?start=<timestamp>&end=<timestamp>`
+
+Get energy readings within a specific date/time range.
+
+**Query Parameters:**
+- `start` (required): Start timestamp in format `YYYY-MM-DD HH:MM:SS`
+- `end` (required): End timestamp in format `YYYY-MM-DD HH:MM:SS`
+
+**Response:**
+```json
+{
+  "success": true,
+  "client_id": "ESP32-fa641d44",
+  "readings": [
+    {
+      "energy_kwh": 120.50,
+      "timestamp": "2025-12-23 00:00:00"
+    },
+    {
+      "energy_kwh": 123.45,
+      "timestamp": "2025-12-23 06:05:00"
+    }
+  ]
+}
+```
+
+**Notes:**
+- Results are ordered chronologically (oldest first)
+- Useful for generating custom date range reports
+- Timestamps are stored in UTC in the database
+
+---
+
 ### Error Responses
 
 All endpoints return errors in this format:
@@ -929,19 +977,26 @@ The API automatically restarts the scheduler service (`smart-meter-scheduler.ser
 - ✅ Schedule update endpoint with partial updates
 - ✅ Automatic scheduler restart on API changes
 - ✅ Threshold alert publishing (retained MQTT messages)
+- ✅ OTA (Over-The-Air) firmware updates with ElegantOTA
+- ✅ Web-based firmware update interface on ESP32
+- ✅ Android application with full MVVM architecture
+- ✅ Real-time MQTT dashboard with device discovery
+- ✅ Historical data visualization (daily/weekly/monthly graphs)
+- ✅ Schedule management UI (daily schedules and timers)
+- ✅ Energy threshold configuration in Android app
+- ✅ Device renaming with Room database
+- ✅ Material Design 3 UI with dark theme
+- ✅ Timezone-aware API with UTC handling
+- ✅ Energy readings by date range endpoint (`/api/energy/<client_id>/range`)
 
 ### In Progress
-- 🔄 Android application development
-  - Device discovery and monitoring
-  - Schedule management UI
-  - Real-time dashboard
-  - Threshold configuration
+- 🔄 None currently
 
 ### Planned
 - 📋 Power-off handling (UPS integration or safe shutdown)
 - 📋 Web dashboard for Raspberry Pi (alternative to Android app)
 - 📋 Energy cost calculations and billing estimates
-- 📋 Usage alerts and push notifications
+- 📋 Push notifications for threshold alerts
 - 📋 Data export (CSV, JSON)
 - 📋 Multi-level user authentication for API
 - 📋 Schedule templates and presets
@@ -984,6 +1039,22 @@ The API automatically restarts the scheduler service (`smart-meter-scheduler.ser
 - Verify display update interval (1 second default)
 - Check if status strings are being updated in event callbacks
 - Monitor serial output for connection state changes
+
+**OTA firmware update not accessible:**
+- Verify ESP32 is connected to WiFi (check OLED display for IP address)
+- Navigate to `http://<ESP32_IP>/update` in your browser
+- Check if web server started: Look for "HTTP server started - OTA available at /update" in serial monitor
+- Ensure port 80 is not blocked by firewall
+- Try accessing device info page first: `http://<ESP32_IP>/`
+- If page doesn't load, restart ESP32 and check serial monitor for errors
+
+**OTA upload fails:**
+- Ensure firmware binary is compiled for ESP32
+- Check available flash space (OTA requires sufficient free space)
+- Use stable WiFi connection during upload
+- Don't interrupt power during firmware update
+- If upload stalls, refresh page and try again
+- Check serial monitor for detailed error messages
 
 ### Raspberry Pi Issues
 
@@ -1160,6 +1231,9 @@ curl -X PUT http://mqttpi.local:5001/api/thresholds/ESP32-fa641d44 \
 # Get energy data
 curl http://mqttpi.local:5001/api/energy/ESP32-fa641d44?limit=10
 curl http://mqttpi.local:5001/api/energy/ESP32-fa641d44?period=day
+
+# Get energy readings by date range
+curl "http://mqttpi.local:5001/api/energy/ESP32-fa641d44/range?start=2025-12-23%2000:00:00&end=2025-12-23%2023:59:59"
 ```
 
 **Check database contents:**
@@ -1222,6 +1296,8 @@ This is a personal learning project, but suggestions and improvements are welcom
 - PZEM-004T library by Jakub Mandula
 - WiFiManager by tzapu
 - U8g2 OLED library by oliver
+- ESPAsyncWebServer by me-no-dev
+- ElegantOTA by Ayush Sharma
 - Eclipse Mosquitto MQTT broker
 - APScheduler by Alex Grönholm
 - Flask web framework
